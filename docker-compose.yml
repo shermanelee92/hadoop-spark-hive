@@ -1,0 +1,93 @@
+version: '3'
+
+services:
+  master:
+    image: hadoop-master-img
+    container_name: hadoop-master
+    volumes:
+        - ./master/hadoop/conf:/usr/local/hadoop/etc/hadoop
+        - ./master/spark/conf:/usr/local/spark/conf
+    ports:
+       - 8088:8088
+       - 8042:8042
+       - 4040:4040
+       - 7077:7077
+       - 50070:50070
+       - 9001:9001
+       - 50010:50010
+       - 8080:8080
+    environment:
+        - JAVA_HOME=/usr/lib/jvm/java-1.8.0-openjdk-amd64
+        - HADOOP_HOME=/usr/local/hadoop
+        - SPARK_HOME=/usr/local/spark
+        - PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/hadoop/bin:/usr/local/spark/bin:/usr/lib/jvm/java-1.11.0-openjdk-amd64/bin:/usr/local/hive/bin
+        - HADOOP_CONF_DIR=/usr/local/hadoop/etc/hadoop
+        - HDFS_NAMENODE_USER=root
+        - HDFS_DATANODE_USER=root
+        - HDFS_SECONDARYNAMENODE_USER=root
+        - YARN_RESOURCEMANAGER_USER=root
+        - YARN_NODEMANAGER_USER=root
+        - HADOOP_SSH_OPTS=-p 22
+        - HIVE_CONF_DIR=/usr/local/hive/conf
+        - HIVE_HOME=/usr/local/hive
+    tty: true
+  slave1:
+    image: hadoop-slave-img
+    container_name: hadoop-slave1
+    volumes:
+        - ./slave/hadoop/conf:/usr/local/hadoop/etc/hadoop
+    ports:
+      - 9000:9000
+      - 9870:9871
+    environment:
+        - JAVA_HOME=/usr/lib/jvm/java-1.8.0-openjdk-amd64
+        - HADOOP_HOME=/usr/local/hadoop
+        - PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/hadoop/bin:/usr/lib/jvm/java-1.11.0-openjdk-amd64/bin:/usr/local/hive/bin
+        - HADOOP_CONF_DIR=/usr/local/hadoop/etc/hadoop
+        - HDFS_NAMENODE_USER=root
+        - HDFS_DATANODE_USER=root
+        - HDFS_SECONDARYNAMENODE_USER=root
+        - YARN_RESOURCEMANAGER_USER=root
+        - YARN_NODEMANAGER_USER=root
+        - HADOOP_SSH_OPTS=-p 22
+    tty: true
+  slave2:
+    image: hadoop-slave-img
+    container_name: hadoop-slave2
+    volumes:
+        - ./slave/hadoop/conf:/usr/local/hadoop/etc/hadoop
+    environment:
+        - JAVA_HOME=/usr/lib/jvm/java-1.8.0-openjdk-amd64
+        - HADOOP_HOME=/usr/local/hadoop
+        - PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/hadoop/bin:/usr/lib/jvm/java-1.11.0-openjdk-amd64/bin:/usr/local/hive/bin
+        - HADOOP_CONF_DIR=/usr/local/hadoop/etc/hadoop
+        - HDFS_NAMENODE_USER=root
+        - HDFS_DATANODE_USER=root
+        - HDFS_SECONDARYNAMENODE_USER=root
+        - YARN_RESOURCEMANAGER_USER=root
+        - YARN_NODEMANAGER_USER=root
+        - HADOOP_SSH_OPTS=-p 22
+    tty: true
+  hivedb:
+    image: hive-db-img
+    container_name: hive-db
+    volumes:
+        - ./database/hive/conf:/usr/local/hive/conf
+    ports:
+      - 9083:9083
+      - 10002:10002
+    environment:
+        - JAVA_HOME=/usr/lib/jvm/java-1.8.0-openjdk-amd64
+        - HADOOP_HOME=/usr/local/hadoop
+        - SPARK_HOME=/usr/local/spark
+        - PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/hadoop/bin:/usr/local/spark/bin:/usr/lib/jvm/java-1.11.0-openjdk-amd64/bin:/usr/local/hive/bin
+        - HADOOP_CONF_DIR=/usr/local/hadoop/etc/hadoop
+        - HDFS_NAMENODE_USER=root
+        - HDFS_DATANODE_USER=root
+        - HDFS_SECONDARYNAMENODE_USER=root
+        - YARN_RESOURCEMANAGER_USER=root
+        - YARN_NODEMANAGER_USER=root
+        - HADOOP_SSH_OPTS=-p 22
+        - HIVE_CONF_DIR=/usr/local/hive/conf
+        - HIVE_HOME=/usr/local/hive
+    tty: true
