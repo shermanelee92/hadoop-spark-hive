@@ -11,4 +11,4 @@ docker exec -it hadoop-master bash -c 'ssh-copy-id -i ~/.ssh/id_rsa.pub root@had
 docker exec -it hadoop-master bash -c 'ssh-copy-id -i ~/.ssh/id_rsa.pub root@hadoop-slave2'
 
 docker exec hadoop-master /usr/local/hadoop/bin/hdfs namenode -format
-docker exec -it hadoop-master /usr/local/hadoop/sbin/start-all.sh namenode -format
+docker exec -it hadoop-master /usr/local/hadoop/sbin/start-all.sh
