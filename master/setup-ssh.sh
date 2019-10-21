@@ -5,9 +5,12 @@ echo "moving ssh key for hadoop-master"
 docker exec hadoop-master bash -c 'cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys'
 echo "change owner for hadoop-master"
 docker exec hadoop-master bash -c 'chmod og-wx ~/.ssh/authorized_keys'
+docker exec -it hadoop-master bash -c "su root -c 'service ssh restart'"
 docker exec hadoop-master bash -c 'ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no localhost'
 
+docker exec -it hadoop-slave1 bash -c "su root -c 'service ssh restart'"
 docker exec -it hadoop-master bash -c 'ssh-copy-id -i ~/.ssh/id_rsa.pub root@hadoop-slave1'
+docker exec -it hadoop-slave2 bash -c "su root -c 'service ssh restart'"
 docker exec -it hadoop-master bash -c 'ssh-copy-id -i ~/.ssh/id_rsa.pub root@hadoop-slave2'
 
 docker exec hadoop-master /usr/local/hadoop/bin/hdfs namenode -format
