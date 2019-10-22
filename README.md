@@ -8,8 +8,9 @@ Build all docker images in the database, master and slave folder
 Build hive sql image
 ```
 cd database
-docker build -t mysql-db-img .
+docker build -t hive-db-img .
 ```
+
 Build Hadoop master image (contains spark too)
 ```
 cd master
@@ -27,9 +28,17 @@ Create the bridge network
 docker network create -d bridge my-bridge-network
 ```
 
-Then run in root project folder
+Then run in root project folder (do this only when you are not on Windows)
 ```
 ./setup.sh
+```
+
+For Windows, modify the following lines in `start-containers.sh`:
+
+```
+PWD=`pwd` -- comment this line
+HOST_MASTER_HADOOP_CONF_PATH="$PWD/master/hadoop/conf" -- change this to the absolute path
+HOST_HIVE_CONF_PATH="$PWD/database/hive/conf" -- change this to the absolute path
 ```
 
 The script will ask where to store the rsa thingy, just enter all the way
@@ -42,6 +51,7 @@ Please refer to the scripts (database/master folders) on what it does as I am to
 Go to http://localhost:8088, you will be able to see the hadoop web page with 2 active nodes!
 
 Try running a spark submit command, go to localhost:8080 and you can see the active jobs!
+
 ```
 docker exec -it hadoop-master /bin/bash
 cd spark
@@ -53,7 +63,6 @@ cd spark
     --executor-cores 1 \
     examples/jars/spark-examples*.jar \
     10
-
 ```
 
 Check if you can access the hive table
