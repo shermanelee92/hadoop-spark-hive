@@ -1,4 +1,4 @@
-# Project Z 
+# Hadoop, Spark, Hive
 This project contains Hadoop, Spark and Hive
 
 # Setup
@@ -22,12 +22,12 @@ cd slave
 docker build -t hadoop-slave-img .
 ```
 
-After building all images, run in root project folder
+Create the bridge network
 ```
-docker-compose up
+docker network create -d bridge my-bridge-network
 ```
 
-Then run 
+Then run in root project folder
 ```
 ./setup.sh
 ```
