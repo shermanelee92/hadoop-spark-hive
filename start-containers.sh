@@ -5,7 +5,8 @@ HOST_HIVE_CONF_PATH="$PWD/database/hive/conf"
 
 docker run -itd -v $HOST_MASTER_HADOOP_CONF_PATH:$CONT_MASTER_HADOOP_CONF_PATH \
 -v $HOST_MASTER_HADOOP_CONF_PATH:/usr/local/spark/conf \
--p 8088:8088 -p 50070:50070 -p 9001:9001 -p 50010:50010 -p 4040:4040 \
+-v dags:/usr/local/dags \
+-p 8088:8088 -p 50070:50070 -p 9001:9001 -p 50010:50010 -p 4040:4040 -p 8081:8081 \
 --network=my-bridge-network \
 --name=hadoop-master \
 hadoop-master-img

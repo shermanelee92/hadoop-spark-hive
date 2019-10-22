@@ -16,6 +16,13 @@ RUN wget http://us.mirrors.quenda.co/apache/spark/spark-2.4.4/spark-2.4.4-bin-ha
 
 RUN apt-get install python3.6
 
+RUN apt-get update && apt-get install libxml2-dev --yes
+RUN apt-get install python3.6-dev --yes
+RUN wget https://bootstrap.pypa.io/get-pip.py \
+&& python3.6 get-pip.py
+
+RUN pip install jupyter findspark
+
 ENV JAVA_HOME=/usr/lib/jvm/java-1.8.0-openjdk-amd64
 ENV HADOOP_HOME=/usr/local/hadoop
 ENV SPARK_HOME=/usr/local/spark
@@ -36,6 +43,10 @@ COPY sshd_config /etc/ssh/sshd_configs
 RUN useradd -m -d /home/hadoop hadoop && echo 'hadoop:root' | chpasswd
 # RUN adduser --disabled-password --gecos "" hadoop
 RUN chown -R hadoop:hadoop /usr/local
+
+RUN mkdir dags
+# RUN apt-get install acl
+# RUN setfacl -R -m u:hadoop:rwx /usr/local
 USER hadoop
 
 CMD /bin/bash
