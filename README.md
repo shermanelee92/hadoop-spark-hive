@@ -38,7 +38,9 @@ For Windows, modify the following lines in `start-containers.sh`:
 ```
 PWD=`pwd` -- comment this line
 HOST_MASTER_HADOOP_CONF_PATH="$PWD/master/hadoop/conf" -- change this to the absolute path
+HOST_MASTER_SPARK_CONF_PATH="$PWD/master/spark/conf" -- change this to absolute path
 HOST_HIVE_CONF_PATH="$PWD/database/hive/conf" -- change this to the absolute path
+DAGS_FOLDER="$PWD/dags" -- change this to the absolute path
 ```
 
 The script will ask where to store the rsa thingy, just enter all the way
