@@ -28,10 +28,10 @@ ENV HADOOP_SSH_OPTS="-p 22"
 ENV HIVE_CONF_DIR=/usr/local/hive/conf
 ENV HIVE_HOME=/usr/local/hive
 
-RUN useradd -m -d /home/hadoop hadoop && echo 'hadoop:root' | chpasswd
-RUN chown -R hadoop:hadoop /usr/local && chown -R hadoop:hadoop /var/lib/
+# RUN useradd -m -d /home/hadoop hadoop && echo 'hadoop:root' | chpasswd
+# RUN chown -R hadoop:hadoop /usr/local && chown -R hadoop:hadoop /var/lib/
 
 COPY setup_script.sql /usr/local
-USER hadoop
+# USER hadoop
 
 CMD /bin/bash

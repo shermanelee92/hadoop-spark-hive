@@ -40,11 +40,16 @@ ENV PYSPARK_PYTHON=python3
 
 COPY sshd_config /etc/ssh/sshd_configs
 
-RUN useradd -m -d /home/hadoop hadoop && echo 'hadoop:root' | chpasswd
+RUN groupadd hadoop && \
+useradd -m -d /home/hadoop -g hadoop hadoop && echo 'hadoop:root' | chpasswd && \
+chgrp -R hadoop /usr/local && \
+chmod -R g+rwx /usr/local
 # RUN adduser --disabled-password --gecos "" hadoop
-RUN chown -R hadoop:hadoop /usr/local
+# RUN chown -R hadoop:hadoop /usr/local
 
-RUN mkdir dags
+RUN mkdir dags && \
+chgrp -R hadoop dags && \
+chmod -R g+rwx dags
 # RUN apt-get install acl
 # RUN setfacl -R -m u:hadoop:rwx /usr/local
 USER hadoop
