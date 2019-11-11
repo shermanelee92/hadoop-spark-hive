@@ -22,6 +22,7 @@ RUN wget https://bootstrap.pypa.io/get-pip.py \
 && python3.6 get-pip.py
 
 RUN pip install jupyter findspark
+RUN pip install neo4j
 
 ENV JAVA_HOME=/usr/lib/jvm/java-1.8.0-openjdk-amd64
 ENV HADOOP_HOME=/usr/local/hadoop

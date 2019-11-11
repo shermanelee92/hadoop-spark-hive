@@ -1,6 +1,6 @@
 #!/bin/sh
 echo "creating ssh key for hadoop-master"
-docker exec -it hadoop-master ssh-keygen -t rsa -b 4096 -f /home/hadoop/.ssh/id_rsa
+docker exec -it hadoop-master bash -c 'ssh-keygen -t rsa -b 4096 -f /home/hadoop/.ssh/id_rsa'
 echo "change owner for hadoop-master"
 docker exec hadoop-master bash -c 'cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys'
 docker exec hadoop-master bash -c 'chmod og-wx ~/.ssh/authorized_keys'
