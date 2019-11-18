@@ -54,6 +54,10 @@ chmod -R g+rwx dags
 
 RUN echo 'root:root' |chpasswd
 
+VOLUME [ "/sys/fs/cgroup"]
 EXPOSE 80
+
+RUN yum install sshpass -y
+COPY password.txt password.txt
 
 ENTRYPOINT ["/sbin/init"]
