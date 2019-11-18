@@ -5,26 +5,30 @@ CONT_MASTER_HADOOP_CONF_PATH='/usr/local/hadoop/etc/hadoop'
 HOST_HIVE_CONF_PATH="$PWD/database/hive/conf"
 DAGS_FOLDER="$PWD/dags"
 
-docker run -itd -v $HOST_MASTER_HADOOP_CONF_PATH:$CONT_MASTER_HADOOP_CONF_PATH \
+docker run --privileged --tmpfs /run -itd -v $HOST_MASTER_HADOOP_CONF_PATH:$CONT_MASTER_HADOOP_CONF_PATH \
 -v $HOST_MASTER_SPARK_CONF_PATH:/usr/local/spark/conf \
 -v $DAGS_FOLDER:/usr/local/dags \
--p 8088:8088 -p 50070:50070 -p 9001:9001 -p 50010:50010 -p 4040:4040 -p 8081:8081 \
+-v /sys/fs/cgroup:/sys/fs/cgroup:ro \
+-p 8088:8088 -p 50070:50070 -p 9001:9001 -p 50010:50010 -p 4040:4040 -p 8081:8081 -p 80:80 \
 --network=my-bridge-network \
 --name=hadoop-master \
-hadoop-master-img
+hadoop-master-img-centos7
 
-docker run -itd -v $HOST_MASTER_HADOOP_CONF_PATH:$CONT_MASTER_HADOOP_CONF_PATH \
+docker run --tmpfs /run -itd -v $HOST_MASTER_HADOOP_CONF_PATH:$CONT_MASTER_HADOOP_CONF_PATH \
+-v /sys/fs/cgroup:/sys/fs/cgroup:ro \
 --network=my-bridge-network \
 --name=hadoop-slave1 \
-hadoop-slave-img
+hadoop-slave-img-centos7
 
-docker run -itd -v $HOST_MASTER_HADOOP_CONF_PATH:$CONT_MASTER_HADOOP_CONF_PATH \
+docker run --tmpfs /run -itd -v $HOST_MASTER_HADOOP_CONF_PATH:$CONT_MASTER_HADOOP_CONF_PATH \
+-v /sys/fs/cgroup:/sys/fs/cgroup:ro \
 --network=my-bridge-network \
 --name=hadoop-slave2 \
-hadoop-slave-img
+hadoop-slave-img-centos7
 
-docker run -itd -v $HOST_HIVE_CONF_PATH:/usr/local/hive/conf \
+docker run --tmpfs /run -itd -v $HOST_HIVE_CONF_PATH:/usr/local/hive/conf \
 --network=my-bridge-network \
+-v /sys/fs/cgroup:/sys/fs/cgroup:ro \
 -p 9083:9083 -p 10002:10002 \
 --name=hive-db \
-hive-db-img
+hive-db-img-centos7

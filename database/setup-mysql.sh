@@ -1,12 +1,20 @@
 # docker exec hive-db cp /usr/share/java/mysql-connector-java.jar /usr/local/hive/lib
 docker exec -it hive-db bash -c "cp /usr/share/java/mysql-connector-java.jar /usr/local/hive/lib"
 # setup hive database in mysql
-docker exec -it hive-db bash -c "su root -c 'chown -R mysql:mysql /var/lib/mysql'"
+docker exec -it hive-db bash -c "chown -R mysql:mysql /var/lib/mysql"
 
-docker exec -it hive-db bash -c "su root -c 'service mysql start'"
+docker exec -it hive-db bash -c "systemctl set-environment MYSQLD_OPTS="--skip-grant-tables""
+docker exec -it hive-db bash -c "service mysqld start"
+docker exec -it hive-db bash -c "mysql -uroot -e \"source /usr/local/change_pass.sql\""
+docker exec -it hive-db bash -c "systemctl unset-environment MYSQLD_OPTS"
+docker exec -it hive-db bash -c "service mysqld restart"
 
-docker exec -it hive-db bash -c "su root -c 'mysql -uroot -proot -e \"source /usr/local/setup_script.sql\"'"
-docker exec -it hive-db bash -c "su root -c 'rm -f /usr/local/setup_script.sql'"
+docker exec -it hive-db bash -c "echo "changed pass""
+docker exec -it hive-db bash -c "systemctl unset-environment MYSQLD_OPTS"
+docker exec -it hive-db bash -c "systemctl restart mysqld"
+docker exec -it hive-db bash -c "mysql -uroot -psup3rPw#1 -e \"source /usr/local/setup_script.sql\""
+docker exec -it hive-db bash -c "rm -f /usr/local/setup_script.sql"
+docker exec -it hive-db bash -c "rm -f /usr/local/change_pass.sql"
 
 # create hive database directories
 docker exec hive-db hadoop/bin/hdfs dfs -mkdir user

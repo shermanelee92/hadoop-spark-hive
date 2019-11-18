@@ -1,6 +1,9 @@
-FROM rastasheep/ubuntu-sshd
+FROM centos:7
 
-RUN apt-get update && apt-get install openjdk-8* -y && apt-get install vim -y
+RUN yum -y update && yum clean all
+RUN yum install wget which initscripts -y
+RUN yum install java-1.8.0-openjdk-devel -y
+RUN yum -y install openssh-server openssh-clients
 
 WORKDIR /usr/local
 
@@ -16,11 +19,15 @@ RUN wget https://www-us.apache.org/dist/hadoop/common/hadoop-2.9.2/hadoop-2.9.2.
     && rm -rf hadoop-2.9.2 \
     && rm hadoop-2.9.2.tar.gz
 
-RUN apt-get update \
-    && apt-get install mysql-server -y \
-    && apt-get install libmysql-java
+RUN rpm -Uvh https://repo.mysql.com/mysql80-community-release-el7-3.noarch.rpm
+RUN sed -i 's/enabled=1/enabled=0/' /etc/yum.repos.d/mysql-community.repo
+RUN yum --enablerepo=mysql80-community install mysql-community-server -y
 
-ENV JAVA_HOME=/usr/lib/jvm/java-1.8.0-openjdk-amd64
+RUN wget https://dev.mysql.com/get/Downloads/Connector-J/mysql-connector-java-8.0.18-1.el8.noarch.rpm \
+&& rpm -i mysql-connector-java-8.0.18-1.el8.noarch.rpm \
+&& yum localinstall mysql-connector-java-8.0.18-1.el8.noarch.rpm
+
+ENV JAVA_HOME=/usr/lib/jvm/java-1.8.0-openjdk
 ENV HADOOP_HOME=/usr/local/hadoop
 ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/hadoop/bin:/usr/lib/jvm/java-1.11.0-openjdk-amd64/bin:/usr/local/hive/bin
 ENV HADOOP_CONF_DIR=/usr/local/hadoop/etc/hadoop
@@ -28,10 +35,10 @@ ENV HADOOP_SSH_OPTS="-p 22"
 ENV HIVE_CONF_DIR=/usr/local/hive/conf
 ENV HIVE_HOME=/usr/local/hive
 
-# RUN useradd -m -d /home/hadoop hadoop && echo 'hadoop:root' | chpasswd
-# RUN chown -R hadoop:hadoop /usr/local && chown -R hadoop:hadoop /var/lib/
+EXPOSE 9083 10002 80
 
 COPY setup_script.sql /usr/local
-# USER hadoop
+COPY change_pass.sql /usr/local
+RUN echo 'root:root' |chpasswd
 
-CMD /bin/bash
+ENTRYPOINT ["/sbin/init"]
