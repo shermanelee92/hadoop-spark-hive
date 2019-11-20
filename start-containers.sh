@@ -2,7 +2,7 @@ PWD=`pwd`
 HOST_MASTER_HADOOP_CONF_PATH="$PWD/master/hadoop/conf"
 HOST_MASTER_SPARK_CONF_PATH="$PWD/master/spark/conf"
 CONT_MASTER_HADOOP_CONF_PATH='/usr/local/hadoop/etc/hadoop'
-HOST_HIVE_CONF_PATH="$PWD/database/hive/conf"
+HOST_HIVE_CONF_PATH="$PWD/hive/conf"
 DAGS_FOLDER="$PWD/dags"
 
 docker run --privileged --tmpfs /run -itd -v $HOST_MASTER_HADOOP_CONF_PATH:$CONT_MASTER_HADOOP_CONF_PATH \
@@ -32,3 +32,7 @@ docker run --tmpfs /run -itd -v $HOST_HIVE_CONF_PATH:/usr/local/hive/conf \
 -p 9083:9083 -p 10002:10002 \
 --name=hive-db \
 hive-db-img-centos7
+
+docker run --name mysql-hive -e MYSQL_ROOT_PASSWORD=root -d \
+-p 3306:3306 \
+--network=my-bridge-network mysql-for-hive-img

@@ -7,20 +7,25 @@ Build all docker images in the database, master and slave folder
 
 Build hive sql image
 ```
-cd database
-docker build -t hive-db-img .
+cd hive
+docker build -t hive-db-img-centos7 .
+```
+Build sql image
+```
+cd hive
+docker build -t mysql-for-hive-img .
 ```
 
 Build Hadoop master image (contains spark too)
 ```
 cd master
-docker build -t hadoop-master-img .
+docker build -t hadoop-master-img-centos7 .
 ```
 
 Build Hadoop slave image
 ```
 cd slave
-docker build -t hadoop-slave-img .
+docker build -t hadoop-slave-img-centos7 .
 ```
 
 Create the bridge network

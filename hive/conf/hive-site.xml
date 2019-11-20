@@ -12,7 +12,7 @@
   </property>
   <property>
 	  <name>javax.jdo.option.ConnectionURL</name>
-	  <value>jdbc:mysql://localhost/metastore?createDatabaseIfNotExist=true&amp;useSSL=false&amp;allowPublicKeyRetrieval=true</value>
+	  <value>jdbc:mysql://mysql-hive:3306/metastore?createDatabaseIfNotExist=true&amp;useSSL=false&amp;allowPublicKeyRetrieval=true</value>
 	  <description>metadata is stored in a MySQL server</description>
   </property>
   <property>
@@ -27,7 +27,7 @@
   </property>
   <property>
 	  <name>javax.jdo.option.ConnectionPassword</name>
-	  <value>sup3rPw#2</value>
+	  <value>root</value>
 	  <description>password to use against metastore database</description>
   </property>
   <property>
