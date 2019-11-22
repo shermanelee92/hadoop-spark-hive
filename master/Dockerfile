@@ -43,10 +43,14 @@ ENV PYSPARK_PYTHON=python3
 
 COPY sshd_config /etc/ssh/sshd_configs
 
+RUN mkdir spark/logs
+
 RUN groupadd hadoop && \
 useradd -m -d /home/hadoop -g hadoop hadoop && echo 'hadoop:root' | chpasswd && \
 chgrp -R hadoop /usr/local && \
-chmod -R g+rwx /usr/local
+chmod -R g+rwx /usr/local && \
+chgrp -R hadoop /tmp && \
+chmod -R g+rwx /tmp
 
 RUN mkdir dags && \
 chgrp -R hadoop dags && \
@@ -55,7 +59,7 @@ chmod -R g+rwx dags
 RUN echo 'root:root' |chpasswd
 
 VOLUME [ "/sys/fs/cgroup"]
-EXPOSE 80
+EXPOSE 80 18080
 
 RUN yum install sshpass -y
 COPY password.txt password.txt

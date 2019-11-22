@@ -12,4 +12,6 @@ docker exec -it --user hadoop hadoop-master bash -c "sshpass -f "password.txt" s
 docker exec -it --user hadoop hadoop-master bash -c "service sshd restart"
 docker exec  --user hadoop hadoop-master /usr/local/hadoop/bin/hdfs namenode -format
 docker exec -it  --user hadoop hadoop-master /usr/local/hadoop/sbin/start-all.sh
+docker exec -it --user hadoop hadoop-master hdfs dfs -mkdir /eventLogging
+docker exec -it --user hadoop hadoop-master /usr/local/spark/sbin/start-history-server.sh
 docker exec -it  --user hadoop hadoop-master jupyter notebook --ip=0.0.0.0 --port=8081

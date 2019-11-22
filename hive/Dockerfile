@@ -25,7 +25,7 @@ RUN wget https://dev.mysql.com/get/Downloads/Connector-J/mysql-connector-java-8.
 
 ENV JAVA_HOME=/usr/lib/jvm/java-1.8.0-openjdk
 ENV HADOOP_HOME=/usr/local/hadoop
-ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/hadoop/bin:/usr/lib/jvm/java-1.11.0-openjdk-amd64/bin:/usr/local/hive/bin
+ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/hadoop/bin:/usr/local/hive/bin
 ENV HADOOP_CONF_DIR=/usr/local/hadoop/etc/hadoop
 ENV HADOOP_SSH_OPTS="-p 22"
 ENV HIVE_CONF_DIR=/usr/local/hive/conf
