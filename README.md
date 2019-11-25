@@ -12,7 +12,7 @@ docker build -t hive-db-img-centos7 .
 ```
 Build sql image
 ```
-cd hive
+cd mysql
 docker build -t mysql-for-hive-img .
 ```
 
