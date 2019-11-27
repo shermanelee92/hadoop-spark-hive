@@ -14,4 +14,3 @@ docker exec  --user hadoop hadoop-master /usr/local/hadoop/bin/hdfs namenode -fo
 docker exec -it  --user hadoop hadoop-master /usr/local/hadoop/sbin/start-all.sh
 docker exec -it --user hadoop hadoop-master hdfs dfs -mkdir /eventLogging
 docker exec -it --user hadoop hadoop-master /usr/local/spark/sbin/start-history-server.sh
-docker exec -it  --user hadoop hadoop-master jupyter notebook --ip=0.0.0.0 --port=8081
