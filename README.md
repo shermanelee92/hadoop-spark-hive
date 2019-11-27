@@ -38,14 +38,17 @@ Then run in root project folder (do this only when you are not on Windows)
 ./setup.sh
 ```
 
-For Windows, modify the following lines in `start-containers.sh`:
+For Windows, run the following on a bash shell:
 
 ```
-PWD=`pwd` -- comment this line
-HOST_MASTER_HADOOP_CONF_PATH="$PWD/master/hadoop/conf" -- change this to the absolute path
-HOST_MASTER_SPARK_CONF_PATH="$PWD/master/spark/conf" -- change this to absolute path
-HOST_HIVE_CONF_PATH="$PWD/database/hive/conf" -- change this to the absolute path
-DAGS_FOLDER="$PWD/dags" -- change this to the absolute path
+./setup_windows.bat
+```
+
+If you face `org.freedesktop.PolicyKit1 was not provided by any .service files` errors you may have to reinstall `polkit` on `hadoop-master`. Do this:
+
+```
+docker exec -it --user root bash
+yum reinstall polkit
 ```
 
 The script will ask where to store the rsa thingy, just enter all the way
@@ -79,6 +82,12 @@ docker exec -it hadoop-master /bin/bash
 spark/bin/spark-shell
 val sqlContext = new org.apache.spark.sql.hive.HiveContext(sc)
 sqlContext.sql("show databases").show()
+```
+
+To start your Jupyter notebook, run:
+
+```
+docker exec -it  --user hadoop hadoop-master jupyter notebook --ip=0.0.0.0 --port=8081
 ```
 
 Yay!
