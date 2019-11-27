@@ -51,8 +51,7 @@ docker exec -it --user root bash
 yum reinstall polkit
 ```
 
-The script will ask where to store the rsa thingy, just enter all the way
-If there are any yes/no questions answer yes. Password is root.
+Answer `y` when you are prompted to remove kernel spec.
 
 Please refer to the scripts (database/master folders) on what it does as I am too lazy to write out.
 
@@ -87,7 +86,7 @@ sqlContext.sql("show databases").show()
 To start your Jupyter notebook, run:
 
 ```
-docker exec -it  --user hadoop hadoop-master jupyter notebook --ip=0.0.0.0 --port=8081
+docker exec -it --user hadoop hadoop-master jupyter notebook --ip=0.0.0.0 --port=8081
 ```
 
 Yay!

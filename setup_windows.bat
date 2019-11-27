@@ -45,3 +45,4 @@ docker run --name mysql-hive -e MYSQL_ROOT_PASSWORD=root -d ^
 sh mysql/setup-mysql.sh
 sh hive/setup-hive.sh
 CALL master/setup-ssh_windows.bat
+sh setup_python.sh
