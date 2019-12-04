@@ -46,3 +46,4 @@ sh mysql/setup-mysql.sh
 sh hive/setup-hive.sh
 CALL master/setup-ssh_windows.bat
 sh setup_python.sh
+sh copy_keys.sh
