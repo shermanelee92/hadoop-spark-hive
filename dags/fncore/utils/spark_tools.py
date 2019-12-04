@@ -50,7 +50,7 @@ def get_spark_context(conf):
     """Get the spark context for submitting pyspark applications"""
     spark_context = None
     try:
-        spark_context = SparkContext(conf=conf)
+        spark_context = SparkContext.getOrCreate(conf=conf)
 
         from fncore.utils.zip_py_module import zip_py
 
