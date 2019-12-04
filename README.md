@@ -38,11 +38,9 @@ Then run in root project folder (do this only when you are not on Windows)
 ./setup.sh
 ```
 
-For Windows, run the following on a bash shell:
+~~For Windows, run `./setup_windows.bat` on a bash shell:~~
 
-```
-./setup_windows.bat
-```
+If you are using a Windows machine, and have Git Bash installed, follow this workaround to mitigate the path interpretation issues: https://github.com/borekb/docker-path-workaround .
 
 If you face `org.freedesktop.PolicyKit1 was not provided by any .service files` errors you may have to reinstall `polkit` on `hadoop-master`. Do this:
 
