@@ -87,4 +87,10 @@ To start your Jupyter notebook, run:
 docker exec -it --user hadoop hadoop-master jupyter notebook --ip=0.0.0.0 --port=8081
 ```
 
+If your containers have stopped, use:
+
+```
+./startup.sh
+```
+
 Yay!

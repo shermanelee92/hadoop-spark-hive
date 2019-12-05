@@ -9,4 +9,3 @@ docker exec -it mysql-hive bash -c "service mysqld restart"
 
 docker exec -d hive-db hive --service metastore
 docker exec -it --user hadoop hadoop-master bash -c "/usr/local/hadoop/sbin/start-all.sh"
-docker exec -it hadoop-master jupyter notebook --ip=0.0.0.0 --port=8081 --allow-root
