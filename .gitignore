@@ -2,4 +2,6 @@
 .DS_Store
 *.pyc
 
+dags/notebooks/*
 dags/notebooks/.ipynb_checkpoints/*
+dags/demo_notebooks/.ipynb_checkpoints/*
