@@ -1,7 +1,6 @@
 .idea/*
 .DS_Store
 *.pyc
+*checkpoint.ipynb
 
 dags/notebooks/*
-dags/notebooks/.ipynb_checkpoints/*
-dags/demo_notebooks/.ipynb_checkpoints/*

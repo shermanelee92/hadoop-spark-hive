@@ -33,7 +33,7 @@ Create the bridge network
 docker network create -d bridge my-bridge-network
 ```
 
-Then run in root project folder (do this only when you are not on Windows)
+Then run in root project folder (read below if you are using Windows)
 ```
 ./setup.sh
 ```
@@ -42,14 +42,14 @@ Then run in root project folder (do this only when you are not on Windows)
 
 If you are using a Windows machine, and have Git Bash installed, follow this workaround to mitigate the path interpretation issues: https://github.com/borekb/docker-path-workaround .
 
-If you face `org.freedesktop.PolicyKit1 was not provided by any .service files` errors you may have to reinstall `polkit` on `hadoop-master`. Do this:
+Answer `y` when you are prompted to remove kernel spec.
+
+Also, if you face `org.freedesktop.PolicyKit1 was not provided by any .service files` errors you may have to reinstall `polkit` on `hadoop-master`. Do this:
 
 ```
 docker exec -it --user root bash
 yum reinstall polkit
 ```
-
-Answer `y` when you are prompted to remove kernel spec.
 
 Please refer to the scripts (database/master folders) on what it does as I am too lazy to write out.
 
