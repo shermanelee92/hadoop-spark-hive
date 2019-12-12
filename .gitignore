@@ -2,5 +2,3 @@
 .DS_Store
 *.pyc
 *checkpoint.ipynb
-
-dags/notebooks/*
