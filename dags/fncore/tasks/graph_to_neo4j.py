@@ -146,6 +146,8 @@ def load_transform_nodes(graph_specification,
 
         default_label_col = '-'.join(['_default_label', str(uuid4())])
 
+        # I don't get this definition, we only return one label when there could be many?
+        # TODO: It should support mutltiple _label (or properties) per table
         actual_label_col = next(
             iter(
                 [column.safe_name
@@ -187,7 +189,8 @@ def get_combined_nodes(graph_specification,
                        common_tags,
                        data_format='parquet',
                        array_delimiter=';',
-                       max_result_size=1e9):
+                       max_result_size=1e9,
+                       debug_write=False):
     """
     Return a Pandas data frame of the combined nodes
 
@@ -244,6 +247,13 @@ def get_combined_nodes(graph_specification,
             .dropna(how='any', subset=[output_node_id_col])
         )
 
+        # If debug mode, write nodes_dropped to hdfs
+        if debug_write:
+            (nodes_dropped.write
+             .format(data_format)
+             .mode(saveMode='overwrite')
+             .save(os.path.join(input_node_path, "combined_nodes")))
+
         # Return the dataframe in batches
         for dataframe in to_pandas_iterator(nodes_dropped, max_result_size=max_result_size):
             yield dataframe
@@ -261,7 +271,8 @@ def get_transformed_edges(graph_specification,
                           output_tag_col,
                           data_format='parquet',
                           array_delimiter=';',
-                          max_result_size=1e9):
+                          max_result_size=1e9,
+                          debug_write=False):
     """
     A generator that returns a Panda data frame of each processed edge
     in the graph specification
@@ -337,6 +348,15 @@ def get_transformed_edges(graph_specification,
                 .filter(transformed[output_target_col] != '')
             )
 
+            # TODO: Ought to select only needed columns, no? Lots of redundant columns
+
+            transformed.schema
+            if debug_write:
+                (transformed.write
+                 .format(data_format)
+                 .mode(saveMode='overwrite')
+                 .save(os.path.join(input_edge_path, "transformed_edges_{}".format(edge_kind.safe_name))))
+
             for dataframe in to_pandas_iterator(transformed, max_result_size=max_result_size):
                 yield dataframe
 
@@ -349,7 +369,10 @@ def graph_to_neo4j(graph_specification,
                    username=None,
                    port=None,
                    data_format='parquet',
-                   max_result_size=1e9):
+                   max_result_size=1e9,
+                   debug_write=False,
+                   verbose=False
+                   ):
     """
     Transform the node and edge lists and push into neo4j.
 
@@ -391,7 +414,8 @@ def graph_to_neo4j(graph_specification,
             common_tags=['_searchable'],
             array_delimiter=';',
             data_format=data_format,
-            max_result_size=max_result_size
+            max_result_size=max_result_size,
+            debug_write=debug_write
         )
 
         # Iteratively export out the nodes
@@ -411,7 +435,13 @@ def graph_to_neo4j(graph_specification,
                            encoding='utf-8',
                            quotechar=quote_char)
 
+            # Verbose
+            if verbose:
+                print("Wrote temp nodes .csv to {}".format(temp_file))
+
         # Get a generator of the edges
+        # Iterates over each edge_kind.safe_name
+        # Each one can be further batched if large
         edges_result = get_transformed_edges(
             graph_specification=graph_specification,
             spark_config=spark_config,
@@ -421,7 +451,8 @@ def graph_to_neo4j(graph_specification,
             output_source_col=':START_ID',
             output_target_col=':END_ID',
             output_tag_col=':TYPE',
-            max_result_size=max_result_size
+            max_result_size=max_result_size,
+            debug_write=debug_write
         )
 
         # For each edge
@@ -456,6 +487,7 @@ def graph_to_neo4j(graph_specification,
 
     # Call the hook to build the database from the zip file
     try:
+        # Neo4J can automatically tell node tables from edge tables based on header names
         build_db(graph_specification, zipped_file, username=username, port=port)
     except:
         raise

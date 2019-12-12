@@ -629,6 +629,8 @@ def test_pipeline_tasks():
                                           username=neo4j_ssh_username,
                                           port=neo4j_ssh_port
                                           )
+
+            # This inserts node properties that were not captured above, more convenient like this???
             neo4j_writer.write_neo4j_nodes(graph_specification=spec,
                                            spark_config=SparkConfFactory()
                                            .set_master('local[*]')
