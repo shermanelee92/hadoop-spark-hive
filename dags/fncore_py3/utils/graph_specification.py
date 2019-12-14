@@ -88,7 +88,11 @@ class EdgeListSchema(Schema, NoNullDump):
     target_column = fields.Nested(ColumnSchema, required=True)
     weight_column = fields.Nested(ColumnSchema, required=False)
     metadata_columns = fields.Nested(ColumnSchema, many=True, required=False)
+    source_metadata_columns = fields.Nested(ColumnSchema, many=True, required=False)
+    target_metadata_columns = fields.Nested(ColumnSchema, many=True, required=False)
     tags = fields.List(fields.Str())
+    source_tags = fields.List(fields.Str())
+    target_tags = fields.List(fields.Str())
 
 
 # pylint: disable=no-self-use
@@ -247,7 +251,11 @@ class EdgeListSpec(GListSpec):
                  weight_column=None,
                  index_column=None,
                  metadata_columns=None,
-                 tags=None):
+                 source_metadata_columns=None,
+                 target_metadata_columns=None,
+                 tags=None,
+                 source_tags=None,
+                 target_tags=None):
 
         super(EdgeListSpec, self).__init__(
             name, table_name, index_column, metadata_columns, tags
@@ -257,6 +265,45 @@ class EdgeListSpec(GListSpec):
         self.target_column = target_column
         self.weight_column = weight_column
 
+        self.name_to_source_metadata_column = OrderedDict()
+        source_metadata_columns = source_metadata_columns or []
+        for source_metadata_column in source_metadata_columns:
+            self.add_source_metadata_column(source_metadata_column)
+        self.source_tags = source_tags or []
+
+        self.name_to_target_metadata_column = OrderedDict()
+        target_metadata_columns = target_metadata_columns or []
+        for target_metadata_column in target_metadata_columns:
+            self.add_target_metadata_column(target_metadata_column)
+        self.target_tags = target_tags or []
+
+    @property
+    def source_metadata_columns(self):
+        """Returns the list of metadata columns"""
+        return list(self.name_to_source_metadata_column.values())
+
+    @property
+    def target_metadata_columns(self):
+        """Returns the list of metadata columns"""
+        return list(self.name_to_target_metadata_column.values())
+
+    def add_source_metadata_column(self, metadata_column):
+        """Add a metadata column"""
+        self.name_to_source_metadata_column[metadata_column.name] = \
+            metadata_column
+
+    def add_target_metadata_column(self, metadata_column):
+        """Add a metadata column"""
+        self.name_to_target_metadata_column[metadata_column.name] = \
+            metadata_column
+
+    def add_source_tag(self, tag):
+        """Add a tag """
+        self.source_tags.append(tag)
+
+    def add_target_tag(self, tag):
+        """Add a tag """
+        self.target_tags.append(tag)
 
 class GraphSpec(object):
     """Graph specification model"""
@@ -322,9 +369,29 @@ class GraphSpec(object):
                         ColumnSpec.from_dict(column_data)
                     )
 
+            if 'source_metadata_columns' in item:
+                for column_data in item['source_metadata_columns']:
+                    edge_list.add_source_metadata_column(
+                        ColumnSpec.from_dict(column_data)
+                    )
+
+            if 'target_metadata_columns' in item:
+                for column_data in item['target_metadata_columns']:
+                    edge_list.add_target_metadata_column(
+                        ColumnSpec.from_dict(column_data)
+                    )
+
             if 'tags' in item:
                 for tag in item['tags']:
                     edge_list.add_tag(tag)
+
+            if 'source_tags' in item:
+                for tag in item['source_tags']:
+                    edge_list.add_source_tag(tag)
+
+            if 'target_tags' in item:
+                for tag in item['target_tags']:
+                    edge_list.add_target_tag(tag)
 
             graph.add_edge_list(edge_list)
 
@@ -434,10 +501,29 @@ class GraphSpec(object):
         except TypeError:
             metadata_columns = []
 
+        try:
+            source_metadata_columns = [(metadata_column.get('name', None),
+                                 metadata_column.get('safe_name', None))
+                                for metadata_column
+                                in edge_list.get('source_metadata_columns', [])]
+        except TypeError:
+            source_metadata_columns = []
+
+        try:
+            target_metadata_columns = [(metadata_column.get('name', None),
+                                 metadata_column.get('safe_name', None))
+                                for metadata_column
+                                in edge_list.get('target_metadata_columns', [])]
+        except TypeError:
+            target_metadata_columns = []
+
         all_cols = set([edge_id_column,
                         source_column,
                         target_column,
-                        weight_column] + metadata_columns)
+                        weight_column] +
+                       metadata_columns +
+                       source_metadata_columns +
+                       target_metadata_columns)
         all_cols = {col for col in all_cols
                     if col not in [None, '', ('', ''), (None, None)]}
         if carry:

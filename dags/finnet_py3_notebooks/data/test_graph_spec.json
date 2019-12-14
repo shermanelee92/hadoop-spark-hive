@@ -99,6 +99,13 @@
         "variable_definition": "String",
         "name": "toffee_s"
       },
+      "source_metadata_columns": [
+        {
+          "variable_definition": "String",
+          "friendly_name": "edge_metadata",
+          "name": "src_meta"
+        }
+      ],
       "name": "toffee_relations",
       "tags": [
         "toffee"
@@ -107,7 +114,10 @@
       "target_column": {
         "variable_definition": "String",
         "name": "toffee_t"
-      }
+      },
+      "target_tags": [
+        "edge_tag"
+      ]
     }
   ]
 }
