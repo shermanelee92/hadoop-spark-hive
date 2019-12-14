@@ -21,6 +21,7 @@ import functools
 import os
 import shutil
 import tempfile
+from itertools import chain
 from uuid import uuid4
 
 from pyspark.sql import DataFrame, HiveContext, SQLContext
@@ -180,10 +181,44 @@ def load_transform_nodes(graph_specification,
 
         yield transformed
 
+# pylint: disable=too-many-arguments
+# pylint: disable=too-many-locals
+def load_transform_nodes_from_edge_tables(graph_specification,
+                                          spark_context,
+                                          input_edge_path,
+                                          output_node_id_col,
+                                          output_label_col,
+                                          output_tag_col,
+                                          data_format='parquet',
+                                          array_delimiter=';'):
+    # TODO: create docstring
+    sql_context = HiveContext(spark_context)
+
+    for edge_kind in graph_specification.edge_lists:
+        data = (sql_context
+                .read.format(data_format)
+                .option('header', 'true')
+                .option('inferschema', 'true')
+                .load(os.path.join(input_edge_path, edge_kind.safe_name)))
+
+        nodes_concat = union_all([
+            data.select(col(edge_kind.source_column.safe_name).alias(output_node_id_col)),
+            data.select(col(edge_kind.target_column.safe_name).alias(output_node_id_col))
+        ])
+
+        transformed = (
+            nodes_concat
+            .withColumn(output_label_col, lit(None))
+            .withColumn(output_tag_col, lit(None))
+            .distinct()
+        )
+
+        yield transformed
 
 def get_combined_nodes(graph_specification,
                        spark_config,
                        input_node_path,
+                       input_edge_path,
                        output_node_id_col,
                        output_label_col,
                        output_tag_col,
@@ -228,8 +263,22 @@ def get_combined_nodes(graph_specification,
             array_delimiter=array_delimiter
         )
 
+        transformed_node_from_edges_lists = load_transform_nodes_from_edge_tables(
+            graph_specification=graph_specification,
+            spark_context=spark_context,
+            input_edge_path=input_edge_path,
+            output_node_id_col=output_node_id_col,
+            output_label_col=output_label_col,
+            output_tag_col=output_tag_col,
+            data_format=data_format,
+            array_delimiter=array_delimiter
+        )
+
         nodes_formatted = (
-            union_all(transformed_node_lists)
+            union_all(chain(
+                transformed_node_lists,
+                transformed_node_from_edges_lists
+            ))
             .groupby(output_node_id_col)
             .agg(collect_set(output_label_col).alias(output_label_col),
                  collect_set(output_tag_col).alias(output_tag_col))
@@ -401,6 +450,7 @@ def graph_to_neo4j(graph_specification,
             graph_specification=graph_specification,
             spark_config=spark_config,
             input_node_path=input_node_path,
+            input_edge_path=input_edge_path,
             output_node_id_col='_canonical_id:ID',
             output_label_col='_label',
             output_tag_col=':LABEL',
