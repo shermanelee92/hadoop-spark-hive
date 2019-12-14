@@ -1,0 +1,12 @@
+,_canonical_id_source,_canonical_id_target,:START_ID,:END_ID,:TYPE
+0,2,3,2,3,toffee
+1,5,7,5,7,toffee
+2,2,4,2,4,toffee
+3,3,4,3,4,toffee
+4,3,6,3,6,toffee
+5,6,1,6,1,toffee
+6,1,0,1,0,toffee
+7,1,9,1,9,toffee
+8,7,5,7,5,toffee
+9,4,9,4,9,toffee
+10,8,9,8,9,toffee

@@ -472,6 +472,10 @@ def graph_to_neo4j(graph_specification,
                          encoding='utf-8',
                          quotechar=quote_char)
 
+            # Verbose
+            if verbose:
+                print("Wrote temp edges .csv to {}".format(temp_file))
+
         # Compress the tables and remove the exported tables
         handle, temp_zip = tempfile.mkstemp(suffix='.zip')
         if handle:

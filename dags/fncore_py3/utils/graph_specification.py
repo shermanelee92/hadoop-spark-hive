@@ -128,8 +128,10 @@ class GraphSchema(Schema, NoNullDump):
         names = [spec_item['name']
                  for list_name
                  in ["node_lists", "edge_lists"]
+                 if list_name in data
                  for spec_item
-                 in data[list_name]]
+                 in data[list_name]
+                 ]
 
         if len(names) != len(set(names)):
             name_counts = Counter(names)
@@ -197,7 +199,7 @@ class GListSpec(object):
     @property
     def metadata_columns(self):
         """Returns the list of metadata columns"""
-        return self.name_to_metadata_column.values()
+        return list(self.name_to_metadata_column.values())
 
     @property
     def safe_name(self):
@@ -359,12 +361,12 @@ class GraphSpec(object):
     @property
     def node_lists(self):
         """ Returns a list of node lists. """
-        return self.name_to_node_list.values()
+        return list(self.name_to_node_list.values())
 
     @property
     def edge_lists(self):
         """ Returns a list of edge lists. """
-        return self.name_to_edge_list.values()
+        return list(self.name_to_edge_list.values())
 
     @staticmethod
     def _node_list_extract_cols(tables, node_list, table_names):

@@ -61,6 +61,7 @@ def union_all(iterable):
     :param iterable: an iterable of spark data frames
     :type iterable: an iterable of spark data frames
     """
+    # TODO: Handle empty iterator
     return functools.reduce(DataFrame.unionAll, iterable)
 
 
@@ -189,8 +190,7 @@ def get_combined_nodes(graph_specification,
                        common_tags,
                        data_format='parquet',
                        array_delimiter=';',
-                       max_result_size=1e9,
-                       debug_write=False):
+                       max_result_size=1e9):
     """
     Return a Pandas data frame of the combined nodes
 
@@ -247,13 +247,6 @@ def get_combined_nodes(graph_specification,
             .dropna(how='any', subset=[output_node_id_col])
         )
 
-        # If debug mode, write nodes_dropped to hdfs
-        if debug_write:
-            (nodes_dropped.write
-             .format(data_format)
-             .mode(saveMode='overwrite')
-             .save(os.path.join(input_node_path, "combined_nodes")))
-
         # Return the dataframe in batches
         for dataframe in to_pandas_iterator(nodes_dropped, max_result_size=max_result_size):
             yield dataframe
@@ -271,8 +264,7 @@ def get_transformed_edges(graph_specification,
                           output_tag_col,
                           data_format='parquet',
                           array_delimiter=';',
-                          max_result_size=1e9,
-                          debug_write=False):
+                          max_result_size=1e9):
     """
     A generator that returns a Panda data frame of each processed edge
     in the graph specification
@@ -348,15 +340,16 @@ def get_transformed_edges(graph_specification,
                 .filter(transformed[output_target_col] != '')
             )
 
+            transformed = (
+                transformed
+                .select(
+                    input_source_col, input_target_col,
+                    output_source_col, output_target_col,
+                    output_tag_col
+                )
+            )
+
             # TODO: Ought to select only needed columns, no? Lots of redundant columns
-
-            transformed.schema
-            if debug_write:
-                (transformed.write
-                 .format(data_format)
-                 .mode(saveMode='overwrite')
-                 .save(os.path.join(input_edge_path, "transformed_edges_{}".format(edge_kind.safe_name))))
-
             for dataframe in to_pandas_iterator(transformed, max_result_size=max_result_size):
                 yield dataframe
 
@@ -414,12 +407,11 @@ def graph_to_neo4j(graph_specification,
             common_tags=['_searchable'],
             array_delimiter=';',
             data_format=data_format,
-            max_result_size=max_result_size,
-            debug_write=debug_write
+            max_result_size=max_result_size
         )
 
         # Iteratively export out the nodes
-        for curnode in nodes:
+        for i,curnode in enumerate(nodes):
 
             # Get a temporary file to ensure we are not overwriting any existing
             # files
@@ -439,6 +431,14 @@ def graph_to_neo4j(graph_specification,
             if verbose:
                 print("Wrote temp nodes .csv to {}".format(temp_file))
 
+            # If debug mode, write nodes_dropped to hdfs
+            if debug_write:
+                debugsavepath = os.path.join(
+                    os.getcwd(),
+                    'debug'
+                )
+                curnode.to_csv(os.path.join(debugsavepath, 'node{}.csv'.format(i)))
+
         # Get a generator of the edges
         # Iterates over each edge_kind.safe_name
         # Each one can be further batched if large
@@ -451,12 +451,11 @@ def graph_to_neo4j(graph_specification,
             output_source_col=':START_ID',
             output_target_col=':END_ID',
             output_tag_col=':TYPE',
-            max_result_size=max_result_size,
-            debug_write=debug_write
+            max_result_size=max_result_size
         )
 
         # For each edge
-        for edges in edges_result:
+        for i,edges in enumerate(edges_result):
 
             # Get a temporary file to ensure we are not
             # overwriting any existing files
@@ -471,6 +470,18 @@ def graph_to_neo4j(graph_specification,
                          index=False,
                          encoding='utf-8',
                          quotechar=quote_char)
+
+            # Verbose
+            if verbose:
+                print("Wrote temp edges .csv to {}".format(temp_file))
+
+            # If debug mode, write nodes_dropped to hdfs
+            if debug_write:
+                debugsavepath = os.path.join(
+                    os.getcwd(),
+                    'debug'
+                )
+                edges.to_csv(os.path.join(debugsavepath, 'edge{}.csv'.format(i)))
 
         # Compress the tables and remove the exported tables
         handle, temp_zip = tempfile.mkstemp(suffix='.zip')

@@ -7,8 +7,8 @@ Neo4J context manager
 import logging
 from contextlib import contextmanager
 
-from neo4j.v1 import (AddressError, GraphDatabase, ProtocolError,
-                      SecurityError, ServiceUnavailable, basic_auth)
+from neo4j.v1 import (GraphDatabase, ServiceUnavailable, basic_auth)
+from neo4j.exceptions import ProtocolError, SecurityError
 
 from fncore_py3.utils.connstr import decode_url_connection_string
 
@@ -28,8 +28,7 @@ def get_neo4j_context(uri):
         driver = GraphDatabase.driver(uri, auth=auth)
         neo4j_context = driver.session()
         yield neo4j_context
-    except (AddressError, ProtocolError,
-            ServiceUnavailable, SecurityError) as graph_exception:
+    except (ProtocolError, ServiceUnavailable, SecurityError) as graph_exception:
         raise graph_exception
     finally:
         if neo4j_context:
