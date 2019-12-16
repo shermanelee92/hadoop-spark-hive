@@ -99,6 +99,8 @@ def _build_edge_lists(graph_specification,
         columns = ([edge_kind.source_column.safe_name]
                    + [edge_kind.target_column.safe_name]
                    + [col.safe_name for col in edge_kind.metadata_columns]
+                   + [col.safe_name for col in edge_kind.source_metadata_columns]
+                   + [col.safe_name for col in edge_kind.target_metadata_columns]
                    + ([edge_kind.index_column.safe_name]
                       if edge_kind.index_column is not None else []))
 

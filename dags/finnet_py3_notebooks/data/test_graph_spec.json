@@ -103,7 +103,8 @@
         {
           "variable_definition": "String",
           "friendly_name": "edge_metadata",
-          "name": "src_meta"
+          "name": "src_meta",
+          "use_as_label": "True"
         }
       ],
       "name": "toffee_relations",

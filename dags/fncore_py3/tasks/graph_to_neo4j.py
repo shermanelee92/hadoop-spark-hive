@@ -26,7 +26,7 @@ from uuid import uuid4
 
 from pyspark.sql import DataFrame, HiveContext, SQLContext
 from pyspark.sql.functions import (col, collect_set, explode, lit, split, trim,
-                                   udf)
+                                   udf, explode_outer)
 from pyspark.sql.types import ArrayType, StringType
 
 from fncore_py3.tasks.neo4j_manager import build_db
@@ -181,6 +181,7 @@ def load_transform_nodes(graph_specification,
 
         yield transformed
 
+
 # pylint: disable=too-many-arguments
 # pylint: disable=too-many-locals
 def load_transform_nodes_from_edge_tables(graph_specification,
@@ -201,15 +202,51 @@ def load_transform_nodes_from_edge_tables(graph_specification,
                 .option('inferschema', 'true')
                 .load(os.path.join(input_edge_path, edge_kind.safe_name)))
 
+        source_label_col = next(
+            iter(
+                [col(column.safe_name)
+                 for column
+                 in edge_kind.source_metadata_columns
+                 if column.use_as_label]),
+            lit(None)
+        )
+
+        target_label_col = next(
+            iter(
+                [col(column.safe_name)
+                 for column
+                 in edge_kind.target_metadata_columns
+                 if column.use_as_label]),
+            lit(None)
+        )
+
+        source_node_tags = array_delimiter.join(edge_kind.source_tags)
+        if not source_node_tags:
+            source_node_tags = None
+        target_node_tags = array_delimiter.join(edge_kind.target_tags)
+        if not target_node_tags:
+            target_node_tags = None
+
         nodes_concat = union_all([
-            data.select(col(edge_kind.source_column.safe_name).alias(output_node_id_col)),
-            data.select(col(edge_kind.target_column.safe_name).alias(output_node_id_col))
+            data.select(
+                col(edge_kind.source_column.safe_name).alias(output_node_id_col),
+                source_label_col.alias(output_label_col),
+                lit(source_node_tags).cast(StringType()).alias(output_tag_col)
+            ),
+            data.select(
+                col(edge_kind.target_column.safe_name).alias(output_node_id_col),
+                target_label_col.alias(output_label_col),
+                lit(target_node_tags).cast(StringType()).alias(output_tag_col)
+            )
         ])
 
         transformed = (
             nodes_concat
-            .withColumn(output_label_col, lit(None))
-            .withColumn(output_tag_col, lit(None))
+            .select(
+                output_node_id_col,
+                output_label_col,
+                explode_outer(split(col(output_tag_col), array_delimiter)).alias(output_tag_col)
+            )
             .distinct()
         )
 
@@ -398,7 +435,6 @@ def get_transformed_edges(graph_specification,
                 )
             )
 
-            # TODO: Ought to select only needed columns, no? Lots of redundant columns
             for dataframe in to_pandas_iterator(transformed, max_result_size=max_result_size):
                 yield dataframe
 
