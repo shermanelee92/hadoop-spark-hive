@@ -45,4 +45,12 @@
     <name>hive.metastore.schema.verification</name>
     <value>true</value>
    </property>
+  <property>
+	  <name>spark.sql.warehouse.dir</name>
+	  <value>hdfs://hadoop-master:9000/user/hive/warehouse</value>
+  </property>
+    <property>
+	  <name>hive.metastore.warehouse.dir</name>
+	  <value>hdfs://hadoop-master:9000/user/hive/warehouse</value>
+  </property>
 </configuration>
