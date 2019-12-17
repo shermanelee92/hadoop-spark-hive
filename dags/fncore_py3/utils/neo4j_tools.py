@@ -39,9 +39,12 @@ def generate_set_label_statements(tags):
     """
     tag_stmt = ""
     if tags and isinstance(tags, list):
-        tag_stmt = [k.strip() for k in tags if isinstance(k, (str, unicode))]
+        tag_stmt = [k.strip() for k in tags if isinstance(k, (str, bytes))]
         tag_stmt = ['`' + k + '`' for k in tag_stmt if len(k) > 0]
         tag_stmt = 'set n:' + ':'.join(tag_stmt) if len(tag_stmt) > 0 else ""
+
+        # TODO: Make upper?
+
     return tag_stmt
 
 
@@ -73,17 +76,22 @@ def generate_set_prop_statements(rowdict, excludefields, noappendfields, mapping
     mapping.update({k: k for k in keylist if k not in mapping})
     rowstmt = ', '.join(
         [
+            # Append value: See 4.4.2,
+            # FIXME: syntax deprecated, use 2.11.2
+            # FIXME: lower became toLower 4.8
             '`' + str(mapping[k]) + '`: case n.`' + str(mapping[k]) + '` when null then ' +
             '[{`' + str(k) + '`}] else ' +
             'filter(x in n.`' + str(mapping[k]) + '` where x <> lower({`' + str(k) +
             '`})) + lower({`' + str(k) + '`}) end '
-            if k not in noappendfields
+            if k not in noappendfields #FIXME: DOUBLE NEGATIVE
             else
+            # Replace value
             '`' + str(mapping[k]) + '`: {`' + str(k) + '`} '
             for k in keylist
         ]
     )
     if len(rowstmt) > 0:
+        # Use of += to mutate existing map of properties, ref: 3.13.8
         rowstmt = 'set n += { ' + rowstmt + ' } '
     return rowstmt
 
@@ -130,6 +138,8 @@ def commit_graphdb(neo_ctx, statements, max_retry):
     for _ in range(max_retry):
         try:
             with neo_ctx.begin_transaction() as txn:
+                # rowdict acts as dictionary of params, see:
+                # https://neo4j.com/docs/api/python-driver/current/transactions.html#neo4j.Transaction
                 for rowdict, stmt in statements:
                     txn.run(stmt, rowdict)
             success = True

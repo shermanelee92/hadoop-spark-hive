@@ -203,6 +203,8 @@ def push_nodes(conf, tags, rows, mapping, hiddenfields, noappendfields):
             rowdict = row.asDict()
             for key, value in rowdict.items():
                 rowdict[key] = unicode(value)
+
+            # Generic statement that still requires filling
             statement = generate_merge_node_statement(rowdict,
                                                       hiddenfields,
                                                       noappendfields,
@@ -278,8 +280,8 @@ def write_neo4j_nodes(graph_specification, spark_config):
                 # Get the labelled fields
                 labelledfields = get_fields_with_property(
                     node_kind, prop='use_as_label')
-                # FIXME: WHAT???? Index 0 always '_label' ????
-                # Producing '_label', '_label_1', '_label_2'....
+
+                # I suppose these are temp labels...?
                 indexfields = ['_label' if k == 0 else '_label_' + str(k)
                                for k in range(len(labelledfields))]
 
@@ -301,11 +303,20 @@ def write_neo4j_nodes(graph_specification, spark_config):
                 tags = node_kind['tags'] + ['_searchable']
                 with get_neo4j_context(neo_config['uri']) as neo_ctx:
                     for tag in tags:
+                        # Tag and '_canonical_id' is a unique pair
                         create_uniqueness_constraint(neo_ctx, tag, '_canonical_id')
                     already_indexed = get_indexes(neo_ctx, '_searchable')
+
+                    # on _label_1, _label_2...?? constraint with tag, but not index on tag... whaaaaa
+                    # only index on _searchable tag with different property labels
+
                     for curindex in indexfields:
                         if curindex not in already_indexed:
+                            # https://neo4j.com/docs/cypher-manual/current/schema/index/
                             create_index(neo_ctx, '_searchable', curindex)
+
+                # FIXME HUH wait why isnt the indexfields used after this line?, okay because the func
+                # below just iterates thru all fields
 
                 data.foreachPartition(
                     lambda x, t=tags, m=mapping, h=hiddenfields, n=noappendfields:
