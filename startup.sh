@@ -9,3 +9,6 @@ docker exec -it mysql-hive bash -c "service mysqld restart"
 
 docker exec -d hive-db hive --service metastore
 docker exec -it --user hadoop hadoop-master bash -c "/usr/local/hadoop/sbin/start-all.sh"
+docker exec --user hadoop hadoop-master hadoop/bin/hdfs dfs -mkdir /user
+docker exec --user hadoop hadoop-master hadoop/bin/hdfs dfs -mkdir /user/hive
+docker exec --user hadoop hadoop-master hadoop/bin/hdfs dfs -mkdir /user/hive/warehouse
