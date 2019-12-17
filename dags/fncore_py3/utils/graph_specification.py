@@ -625,4 +625,6 @@ def get_friendly_name_mapping(node_edge_list):
             mapping[col['safe_name']] = \
                 col.get('friendly_name', col['safe_name'])
 
+    # FIXME: source_metadata, target_metadata
+
     return mapping

@@ -278,6 +278,8 @@ def write_neo4j_nodes(graph_specification, spark_config):
                 # Get the labelled fields
                 labelledfields = get_fields_with_property(
                     node_kind, prop='use_as_label')
+                # FIXME: WHAT???? Index 0 always '_label' ????
+                # Producing '_label', '_label_1', '_label_2'....
                 indexfields = ['_label' if k == 0 else '_label_' + str(k)
                                for k in range(len(labelledfields))]
 
