@@ -7,7 +7,7 @@
     {
       "table_name": "test_data_chocolate_node_list",
       "name": "chocolate nodes",
-      "tags": [
+      "labels": [
         "chocolate"
       ],
       "index_column": {
@@ -19,7 +19,7 @@
     {
       "table_name": "test_data_sweets_node_list",
       "name": "sweets nodes",
-      "tags": [
+      "labels": [
         "sweets"
       ],
       "metadata_columns": [
@@ -39,7 +39,7 @@
     {
       "table_name": "test_data_toffee_node_list",
       "name": "toffee nodes",
-      "tags": [
+      "labels": [
         "toffee"
       ],
       "metadata_columns": [
@@ -70,7 +70,7 @@
         "name": "chocolate_s"
       },
       "name": "chocolate_relations",
-      "tags": [
+      "labels": [
         "chocolate"
       ],
       "table_name": "test_data_chocolate_edge_list",
@@ -85,7 +85,7 @@
         "name": "sweets_s"
       },
       "name": "sweets_relations",
-      "tags": [
+      "labels": [
         "sweets"
       ],
       "table_name": "test_data_sweets_edge_list",
@@ -108,7 +108,7 @@
         }
       ],
       "name": "toffee_relations",
-      "tags": [
+      "labels": [
         "toffee"
       ],
       "table_name": "test_data_toffee_edge_list",
@@ -116,8 +116,8 @@
         "variable_definition": "String",
         "name": "toffee_t"
       },
-      "target_tags": [
-        "edge_tag"
+      "target_labels": [
+        "edge_label"
       ]
     }
   ]

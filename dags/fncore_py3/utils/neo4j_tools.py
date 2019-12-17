@@ -25,34 +25,34 @@ def query_graph_statistics(neo_ctx):
     return num_nodes, num_edges
 
 
-def generate_set_label_statements(tags):
+def generate_set_label_statements(labels):
     """
-    Generate the cypher queries to set the labels of a node given the
-    tags. This is used in conjunction with a cypher query to match the
-    nodes upon which to set the labels
+    Generate the cypher queries to set the labels of a node. This is
+    used in conjunction with a cypher query to match the nodes upon
+    which to set the labels
 
-    :param tags: list of labels to assign to the node
-    :type tags: list
+    :param labels: list of labels to assign to the node
+    :type labels: list
     :return: string corresponding to the cypher query to set the label
              of a node 'n'
     :rtype: str
     """
-    tag_stmt = ""
-    if tags and isinstance(tags, list):
-        tag_stmt = [k.strip() for k in tags if isinstance(k, (str, bytes))]
-        tag_stmt = ['`' + k + '`' for k in tag_stmt if len(k) > 0]
-        tag_stmt = 'set n:' + ':'.join(tag_stmt) if len(tag_stmt) > 0 else ""
+    label_stmt = ""
+    if labels and isinstance(labels, list):
+        label_stmt = [k.strip() for k in labels if isinstance(k, (str, bytes))]
+        label_stmt = ['`' + k + '`' for k in label_stmt if len(k) > 0]
+        label_stmt = 'set n:' + ':'.join(label_stmt) if len(label_stmt) > 0 else ""
 
         # TODO: Make upper?
 
-    return tag_stmt
+    return label_stmt
 
 
 def generate_set_prop_statements(rowdict, excludefields, noappendfields, mapping):
     """
     Generate the cypher queries to set the properties of a node.
     This is used in conjunction with a cypher query to match the
-    nodes upon which to set the labels
+    nodes upon which to set the properties
 
     :param rowdict: a dictionary of the properties to assign to the node
     :type rowdict: dict
@@ -198,7 +198,7 @@ def get_indexes(neo_ctx, label=None):
     return results
 
 
-def generate_merge_node_statement(rowdict, hiddenfields, noappendfields, mapping, tags):
+def generate_merge_node_statement(rowdict, hiddenfields, noappendfields, mapping, labels):
     """
     Generate a cypher merge statement to create a node if it did not exist yet,
     and to merge properties into an existing node if it already exist. It is
@@ -220,14 +220,14 @@ def generate_merge_node_statement(rowdict, hiddenfields, noappendfields, mapping
     :param mapping: a dictionary mapping from the field name (key) to the
                     corresponding friendly name (value)
     :type mapping: dict
-    :param tags: list of labels to assign to the node
-    :type tags: list
+    :param labels: list of labels to assign to the node
+    :type labels: list
     :return: string corresponding to the cypher query to create a node with the
              specified properties by merging with the node if it already existed
     :rtype: str
     """
-    # Create statement to add tags
-    tag_stmt = generate_set_label_statements(tags)
+    # Create statement to add labels
+    label_stmt = generate_set_label_statements(labels)
 
     # Create statement to add properties
     property_stmt = generate_set_prop_statements(rowdict,
@@ -238,7 +238,7 @@ def generate_merge_node_statement(rowdict, hiddenfields, noappendfields, mapping
         'MERGE (n: _searchable ',
         ' {`_canonical_id`: {_canonical_id} }) ',
         property_stmt,
-        tag_stmt])
+        label_stmt])
 
     return statement
 
@@ -246,7 +246,7 @@ def generate_merge_node_statement(rowdict, hiddenfields, noappendfields, mapping
 
 
 def generate_merge_edge_statement(rowdict, hiddenfields, noappendfields, mapping,
-                                  keyname, tags):
+                                  keyname, labels):
     """
     Generate a cypher merge statement to create an edge if it did not exist yet,
     and to merge properties into an existing edge if it already exist. It is
@@ -274,8 +274,8 @@ def generate_merge_edge_statement(rowdict, hiddenfields, noappendfields, mapping
     :param keyname: the name of the field that should be used to key
                     the edge. Set it to None if there's no primary key
     :type keyname: str
-    :param tags: list of labels to assign to the node
-    :type tags: list
+    :param labels: list of labels to assign to the node
+    :type labels: list
     :return: string corresponding to the cypher query to create a node with the
              specified properties by merging with the node if it already existed
     :rtype: str
@@ -295,8 +295,8 @@ def generate_merge_edge_statement(rowdict, hiddenfields, noappendfields, mapping
 
     # Get the label of the edge
     relation = \
-        tags[0] if isinstance(tags, list) and len(tags) > 0 \
-        else tags if isinstance(tags, str) \
+        labels[0] if isinstance(labels, list) and len(labels) > 0 \
+        else labels if isinstance(labels, str) \
         else 'related'
 
     # Get the properties to set

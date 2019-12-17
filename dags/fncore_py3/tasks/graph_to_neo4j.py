@@ -2,12 +2,12 @@
 Graph to Neo4j module.
 
 This module defines the task of preparing the imported node and edge lists to a
-format where Neo4j can import directly. The advantage of this approach is that
+format where Neo4j can import directly. The advanlabele of this approach is that
 the import can be done offline and is non-transactional, hence faster.
 Currently, this has the limitation that the properties from multiple nodes /
 edges cannot be combined / concantenated together. For nodes, only the
 canonical id columns will be inserted, while for the edges, they are replaced.
-Hence a subsequent stage of inserting the properties by the neo4j writer is
+Hence a subsequent slabele of inserting the properties by the neo4j writer is
 needed.
 
 Refer to https://neo4j.com/docs/operations-manual/current/tutorial/import-tool/
@@ -117,8 +117,8 @@ def load_transform_nodes(graph_specification,
                          spark_context,
                          input_node_path,
                          output_node_id_col,
+                         output_props_col,
                          output_label_col,
-                         output_tag_col,
                          data_format='parquet',
                          array_delimiter=';'):
     """
@@ -132,10 +132,10 @@ def load_transform_nodes(graph_specification,
     :type input_node_path: str
     :param output_node_id_col: Column name to use for node id.
     :type output_node_id_col: str
-    :param output_label_col: Column name to use for node label.
+    :param output_props_col: Column name to use for node properties.
+    :type output_props_col: str
+    :param output_label_col: Column name to use for node labels.
     :type output_label_col: str
-    :param output_tag_col: Column name to use for node tag.
-    :type output_tag_col: str
     :param data_format: Format to read and write files for this graph.
     :type data_format: str
     :param array_delimiter: Delimiter used to separate items in array
@@ -146,20 +146,20 @@ def load_transform_nodes(graph_specification,
     for node_kind in graph_specification.node_lists:
         actual_node_id_col = node_kind.index_column.safe_name
 
-        default_label_col = '-'.join(['_default_label', str(uuid4())])
+        default_properties_col = '-'.join(['_default_label', str(uuid4())])
 
         # I don't get this definition, we only return one label when there could be many?
         # TODO: It should support mutltiple _label (or properties) per table
-        actual_label_col = next(
+        actual_properties_col = next(
             iter(
                 [column.safe_name
                  for column
                  in node_kind.metadata_columns + [node_kind.index_column]
                  if column.no_append]),
-            default_label_col
+            default_properties_col
         )
 
-        node_tags = array_delimiter.join(node_kind.tags)
+        node_labels = array_delimiter.join(node_kind.labels)
 
         data = (sql_context.read
                 .format(data_format)
@@ -169,13 +169,13 @@ def load_transform_nodes(graph_specification,
 
         transformed = (
             data
-            .withColumn(default_label_col, lit(None).cast(StringType()))
-            .select(actual_node_id_col, actual_label_col)
+            .withColumn(default_properties_col, lit(None).cast(StringType()))
+            .select(actual_node_id_col, actual_properties_col)
             .withColumnRenamed(actual_node_id_col, output_node_id_col)
-            .withColumnRenamed(actual_label_col, output_label_col)
-            .withColumn(output_tag_col, lit(node_tags).cast(StringType()))
-            .withColumn(output_tag_col, explode(split(col(output_tag_col), array_delimiter)))
-            .select(output_node_id_col, output_label_col, output_tag_col)
+            .withColumnRenamed(actual_properties_col, output_props_col)
+            .withColumn(output_label_col, lit(node_labels).cast(StringType()))
+            .withColumn(output_label_col, explode(split(col(output_label_col), array_delimiter)))
+            .select(output_node_id_col, output_props_col, output_label_col)
             .distinct()
         )
 
@@ -188,8 +188,8 @@ def load_transform_nodes_from_edge_tables(graph_specification,
                                           spark_context,
                                           input_edge_path,
                                           output_node_id_col,
+                                          output_props_col,
                                           output_label_col,
-                                          output_tag_col,
                                           data_format='parquet',
                                           array_delimiter=';'):
     # TODO: create docstring
@@ -202,7 +202,7 @@ def load_transform_nodes_from_edge_tables(graph_specification,
                 .option('inferschema', 'true')
                 .load(os.path.join(input_edge_path, edge_kind.safe_name)))
 
-        source_label_col = next(
+        source_props_col = next(
             iter(
                 [col(column.safe_name)
                  for column
@@ -211,7 +211,7 @@ def load_transform_nodes_from_edge_tables(graph_specification,
             lit(None)
         )
 
-        target_label_col = next(
+        target_props_col = next(
             iter(
                 [col(column.safe_name)
                  for column
@@ -220,23 +220,23 @@ def load_transform_nodes_from_edge_tables(graph_specification,
             lit(None)
         )
 
-        source_node_tags = array_delimiter.join(edge_kind.source_tags)
-        if not source_node_tags:
-            source_node_tags = None
-        target_node_tags = array_delimiter.join(edge_kind.target_tags)
-        if not target_node_tags:
-            target_node_tags = None
+        source_node_labels = array_delimiter.join(edge_kind.source_labels)
+        if not source_node_labels:
+            source_node_labels = None
+        target_node_labels = array_delimiter.join(edge_kind.target_labels)
+        if not target_node_labels:
+            target_node_labels = None
 
         nodes_concat = union_all([
             data.select(
                 col(edge_kind.source_column.safe_name).alias(output_node_id_col),
-                source_label_col.alias(output_label_col),
-                lit(source_node_tags).cast(StringType()).alias(output_tag_col)
+                source_props_col.alias(output_props_col),
+                lit(source_node_labels).cast(StringType()).alias(output_label_col)
             ),
             data.select(
                 col(edge_kind.target_column.safe_name).alias(output_node_id_col),
-                target_label_col.alias(output_label_col),
-                lit(target_node_tags).cast(StringType()).alias(output_tag_col)
+                target_props_col.alias(output_props_col),
+                lit(target_node_labels).cast(StringType()).alias(output_label_col)
             )
         ])
 
@@ -244,8 +244,8 @@ def load_transform_nodes_from_edge_tables(graph_specification,
             nodes_concat
             .select(
                 output_node_id_col,
-                output_label_col,
-                explode_outer(split(col(output_tag_col), array_delimiter)).alias(output_tag_col)
+                output_props_col,
+                explode_outer(split(col(output_label_col), array_delimiter)).alias(output_label_col)
             )
             .distinct()
         )
@@ -257,9 +257,9 @@ def get_combined_nodes(graph_specification,
                        input_node_path,
                        input_edge_path,
                        output_node_id_col,
+                       output_props_col,
                        output_label_col,
-                       output_tag_col,
-                       common_tags,
+                       common_labels,
                        data_format='parquet',
                        array_delimiter=';',
                        max_result_size=1e9):
@@ -274,12 +274,12 @@ def get_combined_nodes(graph_specification,
     :type input_node_path: str
     :param output_node_id_col: Column name to use for node id.
     :type output_node_id_col: str
+    :param output_props_col: Column name to use for node label.
+    :type output_props_col: str
     :param output_label_col: Column name to use for node label.
     :type output_label_col: str
-    :param output_tag_col: Column name to use for node tag.
-    :type output_tag_col: str
-    :param common_tags: Common tags to append to all the nodes
-    :type common_tags: array of str
+    :param common_labels: Common labels to append to all the nodes
+    :type common_labels: array of str
     :param data_format: Format to read and write files for this graph.
     :type data_format: str
     :param array_delimiter: Delimiter used to separate items in array
@@ -294,8 +294,8 @@ def get_combined_nodes(graph_specification,
             spark_context=spark_context,
             input_node_path=input_node_path,
             output_node_id_col=output_node_id_col,
+            output_props_col=output_props_col,
             output_label_col=output_label_col,
-            output_tag_col=output_tag_col,
             data_format=data_format,
             array_delimiter=array_delimiter
         )
@@ -305,8 +305,8 @@ def get_combined_nodes(graph_specification,
             spark_context=spark_context,
             input_edge_path=input_edge_path,
             output_node_id_col=output_node_id_col,
+            output_props_col=output_props_col,
             output_label_col=output_label_col,
-            output_tag_col=output_tag_col,
             data_format=data_format,
             array_delimiter=array_delimiter
         )
@@ -317,11 +317,11 @@ def get_combined_nodes(graph_specification,
                 transformed_node_from_edges_lists
             ))
             .groupby(output_node_id_col)
-            .agg(collect_set(output_label_col).alias(output_label_col),
-                 collect_set(output_tag_col).alias(output_tag_col))
-            .withColumn(output_tag_col, prepend(common_tags)(output_tag_col))
+            .agg(collect_set(output_props_col).alias(output_props_col),
+                 collect_set(output_label_col).alias(output_label_col))
+            .withColumn(output_label_col, prepend(common_labels)(output_label_col))
+            .withColumn(output_props_col, array_to_str(array_delimiter)(output_props_col))
             .withColumn(output_label_col, array_to_str(array_delimiter)(output_label_col))
-            .withColumn(output_tag_col, array_to_str(array_delimiter)(output_tag_col))
             .repartition(1000)
             .cache()
         )
@@ -347,7 +347,7 @@ def get_transformed_edges(graph_specification,
                           input_target_col,
                           output_source_col,
                           output_target_col,
-                          output_tag_col,
+                          output_label_col,
                           data_format='parquet',
                           array_delimiter=';',
                           max_result_size=1e9):
@@ -365,8 +365,8 @@ def get_transformed_edges(graph_specification,
     :type output_source_col: str
     :param output_target_col: Column name to use for target id.
     :type output_target_col: str
-    :param output_tag_col: Column name to use for node tag.
-    :type output_tag_col: str
+    :param output_label_col: Column name to use for node label.
+    :type output_label_col: str
     :param data_format: Format to read and write files for this graph.
     :type data_format: str
     :param array_delimiter: Delimiter used to separate items in array
@@ -410,13 +410,13 @@ def get_transformed_edges(graph_specification,
                     column.friendly_name or column.name
                 )
 
-            edge_tags = array_delimiter.join(edge_kind.tags)
+            edge_labels = array_delimiter.join(edge_kind.labels)
 
             transformed = (
                 transformed
                 .withColumn(output_source_col, trim(transformed[input_source_col]))
                 .withColumn(output_target_col, trim(transformed[input_target_col]))
-                .withColumn(output_tag_col, lit(edge_tags))
+                .withColumn(output_label_col, lit(edge_labels))
             )
 
             transformed = (
@@ -431,7 +431,7 @@ def get_transformed_edges(graph_specification,
                 .select(
                     input_source_col, input_target_col,
                     output_source_col, output_target_col,
-                    output_tag_col
+                    output_label_col
                 )
             )
 
@@ -488,9 +488,9 @@ def graph_to_neo4j(graph_specification,
             input_node_path=input_node_path,
             input_edge_path=input_edge_path,
             output_node_id_col='_canonical_id:ID',
-            output_label_col='_label',
-            output_tag_col=':LABEL',
-            common_tags=['_searchable'],
+            output_props_col='_label',
+            output_label_col=':LABEL',
+            common_labels=['_searchable'],
             array_delimiter=';',
             data_format=data_format,
             max_result_size=max_result_size
@@ -536,7 +536,7 @@ def graph_to_neo4j(graph_specification,
             input_target_col='_canonical_id_target',
             output_source_col=':START_ID',
             output_target_col=':END_ID',
-            output_tag_col=':TYPE',
+            output_label_col=':TYPE',
             max_result_size=max_result_size
         )
 

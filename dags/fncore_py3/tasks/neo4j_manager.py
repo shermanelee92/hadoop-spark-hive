@@ -5,10 +5,10 @@ Finnet Neo4J database. This is necessary to ensure that existing data in the
 neo4j database is wiped, and the insertion of the data into the database will
 result in a consistent state. These management operations executed on the
 server-side using the following web-hook endpoints:
-https://github.com/datagovsg/finnet-neo4j/blob/develop/README.md
+https://github.com/dalabelovsg/finnet-neo4j/blob/develop/README.md
 
 The pipeline a limitation in that we only allow for one graph database instance
-despite the other stages in the pipeline allowing for multiple graph
+despite the other slabeles in the pipeline allowing for multiple graph
 specifications.
 
 We try to overcome this by using multiple neo4j databases for each graph

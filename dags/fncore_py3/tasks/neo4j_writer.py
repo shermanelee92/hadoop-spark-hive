@@ -65,7 +65,7 @@ from fncore_py3.utils.spark_tools import get_spark_context
 
 
 # pylint: disable=too-many-arguments
-def push_edges(conf, tags, keyname, rows, mapping, hiddenfields, noappendfields):
+def push_edges(conf, labels, keyname, rows, mapping, hiddenfields, noappendfields):
     """
     Given a neo4j configurations, insert the edges specified into
     the neo4j database
@@ -73,8 +73,8 @@ def push_edges(conf, tags, keyname, rows, mapping, hiddenfields, noappendfields)
     :param conf: dictionary containing the configuration parameters of the
            connection to the neo4j database
     :type conf: dict
-    :param tags: a string describing the type of the edges to be inserted
-    :type tags: str
+    :param labels: a string describing the type of the edges to be inserted
+    :type labels: str
     :param keyname: a string describing the property to use as primary key for
            the edge
     :type keyname: str
@@ -119,7 +119,7 @@ def push_edges(conf, tags, keyname, rows, mapping, hiddenfields, noappendfields)
                                                       noappendfields,
                                                       mapping,
                                                       keyname,
-                                                      tags)
+                                                      labels)
 
             if source_id in nodes_used or target_id in nodes_used:
                 count = batchsize
@@ -141,7 +141,7 @@ def push_edges(conf, tags, keyname, rows, mapping, hiddenfields, noappendfields)
 
 
 # pylint: disable=too-many-locals
-def push_nodes(conf, tags, rows, mapping, hiddenfields, noappendfields):
+def push_nodes(conf, labels, rows, mapping, hiddenfields, noappendfields):
     """
     Given a neo4j configurations, insert the nodes specified into
     the neo4j database
@@ -149,9 +149,9 @@ def push_nodes(conf, tags, rows, mapping, hiddenfields, noappendfields):
     :param conf: dictionary containing the configuration parameters of
            the connection to the neo4j database
     :type conf: dict
-    :param tags: a list of strings describing the type of the nodes to be
+    :param labels: a list of strings describing the type of the nodes to be
            inserted
-    :type tags: list
+    :type labels: list
     :param rows: a spark dataframe row describing the nodes to be inserted.
            The row must contain `_canonical_id` which contains the canonical
            ids of the nodes
@@ -181,14 +181,14 @@ def push_nodes(conf, tags, rows, mapping, hiddenfields, noappendfields):
     #   - neo4j server down
     #   - host network down
     #   - authentication error
-    # - tags does not exist [CHECKED]
+    # - labels does not exist [CHECKED]
     # - unable to start neo4j cypher transaction
     # - constrained property value does not exist [CHECKED]
     # - Node properties with spaces [CHECKED]
     # - Node properties that are numbers
     # - Empty node property name [CHECKED]
     # - Empty node property value [CHECKED]
-    # - Empty tag value, or value is not a string [CHECKED]
+    # - Empty label value, or value is not a string [CHECKED]
     # - Fail to commit transaction
     #   - nodes exist and are locked for modifications
 
@@ -209,7 +209,7 @@ def push_nodes(conf, tags, rows, mapping, hiddenfields, noappendfields):
                                                       hiddenfields,
                                                       noappendfields,
                                                       mapping,
-                                                      tags)
+                                                      labels)
             statements.append((rowdict, statement))
 
             count -= 1
@@ -300,15 +300,15 @@ def write_neo4j_nodes(graph_specification, spark_config):
                     data = data.withColumn(newfield, upper(data[oldfield]))
 
                 # Setup the node constraints and indices on the labels
-                tags = node_kind['tags'] + ['_searchable']
+                labels = node_kind['labels'] + ['_searchable']
                 with get_neo4j_context(neo_config['uri']) as neo_ctx:
-                    for tag in tags:
-                        # Tag and '_canonical_id' is a unique pair
-                        create_uniqueness_constraint(neo_ctx, tag, '_canonical_id')
+                    for label in labels:
+                        # label and '_canonical_id' is a unique pair
+                        create_uniqueness_constraint(neo_ctx, label, '_canonical_id')
                     already_indexed = get_indexes(neo_ctx, '_searchable')
 
-                    # on _label_1, _label_2...?? constraint with tag, but not index on tag... whaaaaa
-                    # only index on _searchable tag with different property labels
+                    # on _label_1, _label_2...?? constraint with label, but not index on label... whaaaaa
+                    # only index on _searchable label with different property labels
 
                     for curindex in indexfields:
                         if curindex not in already_indexed:
@@ -319,7 +319,7 @@ def write_neo4j_nodes(graph_specification, spark_config):
                 # below just iterates thru all fields
 
                 data.foreachPartition(
-                    lambda x, t=tags, m=mapping, h=hiddenfields, n=noappendfields:
+                    lambda x, t=labels, m=mapping, h=hiddenfields, n=noappendfields:
                     push_nodes(neo_config, t, x, m, h, n)
                 )
 
@@ -391,8 +391,8 @@ def write_neo4j_edges(graph_specification, spark_config):
                 logging.info("Count: " + str(data.count()))
 
                 # Insert the edges into the Neo4j database
-                tags = edge_kind['tags'] if 'tags' in edge_kind else 'related'
+                labels = edge_kind['labels'] if 'labels' in edge_kind else 'related'
                 data.foreachPartition(
-                    lambda x, t=tags, key=keyname, m=mapping, h=hiddenfields, n=keylist:
+                    lambda x, t=labels, key=keyname, m=mapping, h=hiddenfields, n=keylist:
                     push_edges(neo_config, t, key, x, m, h, n)
                 )

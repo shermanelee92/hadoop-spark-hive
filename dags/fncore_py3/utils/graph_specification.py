@@ -74,7 +74,7 @@ class NodeListSchema(Schema, NoNullDump):
     safe_table_name = fields.Str(dump_only=True)
     index_column = fields.Nested(ColumnSchema, required=True)
     metadata_columns = fields.Nested(ColumnSchema, many=True, required=False)
-    tags = fields.List(fields.Str())
+    labels = fields.List(fields.Str())
 
 
 class EdgeListSchema(Schema, NoNullDump):
@@ -90,9 +90,9 @@ class EdgeListSchema(Schema, NoNullDump):
     metadata_columns = fields.Nested(ColumnSchema, many=True, required=False)
     source_metadata_columns = fields.Nested(ColumnSchema, many=True, required=False)
     target_metadata_columns = fields.Nested(ColumnSchema, many=True, required=False)
-    tags = fields.List(fields.Str())
-    source_tags = fields.List(fields.Str())
-    target_tags = fields.List(fields.Str())
+    labels = fields.List(fields.Str())
+    source_labels = fields.List(fields.Str())
+    target_labels = fields.List(fields.Str())
 
 
 # pylint: disable=no-self-use
@@ -190,7 +190,7 @@ class GListSpec(object):
                  table_name,
                  index_column,
                  metadata_columns=None,
-                 tags=None):
+                 labels=None):
         self.name = name
         self.table_name = table_name
         self.index_column = index_column
@@ -198,7 +198,7 @@ class GListSpec(object):
         metadata_columns = metadata_columns or []
         for metadata_column in metadata_columns:
             self.add_metadata_column(metadata_column)
-        self.tags = tags or []
+        self.labels = labels or []
 
     @property
     def metadata_columns(self):
@@ -220,9 +220,9 @@ class GListSpec(object):
         self.name_to_metadata_column[metadata_column.name] = \
             metadata_column
 
-    def add_tag(self, tag):
-        """Add a tag """
-        self.tags.append(tag)
+    def add_label(self, label):
+        """Add a label """
+        self.labels.append(label)
 
 
 class NodeListSpec(GListSpec):
@@ -233,10 +233,10 @@ class NodeListSpec(GListSpec):
                  table_name,
                  index_column,
                  metadata_columns=None,
-                 tags=None):
+                 labels=None):
 
         super(NodeListSpec, self).__init__(
-            name, table_name, index_column, metadata_columns, tags
+            name, table_name, index_column, metadata_columns, labels
         )
 
 
@@ -253,12 +253,12 @@ class EdgeListSpec(GListSpec):
                  metadata_columns=None,
                  source_metadata_columns=None,
                  target_metadata_columns=None,
-                 tags=None,
-                 source_tags=None,
-                 target_tags=None):
+                 labels=None,
+                 source_labels=None,
+                 target_labels=None):
 
         super(EdgeListSpec, self).__init__(
-            name, table_name, index_column, metadata_columns, tags
+            name, table_name, index_column, metadata_columns, labels
         )
 
         self.source_column = source_column
@@ -269,13 +269,13 @@ class EdgeListSpec(GListSpec):
         source_metadata_columns = source_metadata_columns or []
         for source_metadata_column in source_metadata_columns:
             self.add_source_metadata_column(source_metadata_column)
-        self.source_tags = source_tags or []
+        self.source_labels = source_labels or []
 
         self.name_to_target_metadata_column = OrderedDict()
         target_metadata_columns = target_metadata_columns or []
         for target_metadata_column in target_metadata_columns:
             self.add_target_metadata_column(target_metadata_column)
-        self.target_tags = target_tags or []
+        self.target_labels = target_labels or []
 
     @property
     def source_metadata_columns(self):
@@ -297,13 +297,13 @@ class EdgeListSpec(GListSpec):
         self.name_to_target_metadata_column[metadata_column.name] = \
             metadata_column
 
-    def add_source_tag(self, tag):
-        """Add a tag """
-        self.source_tags.append(tag)
+    def add_source_label(self, label):
+        """Add a label """
+        self.source_labels.append(label)
 
-    def add_target_tag(self, tag):
-        """Add a tag """
-        self.target_tags.append(tag)
+    def add_target_label(self, label):
+        """Add a label """
+        self.target_labels.append(label)
 
 class GraphSpec(object):
     """Graph specification model"""
@@ -381,17 +381,17 @@ class GraphSpec(object):
                         ColumnSpec.from_dict(column_data)
                     )
 
-            if 'tags' in item:
-                for tag in item['tags']:
-                    edge_list.add_tag(tag)
+            if 'labels' in item:
+                for label in item['labels']:
+                    edge_list.add_label(label)
 
-            if 'source_tags' in item:
-                for tag in item['source_tags']:
-                    edge_list.add_source_tag(tag)
+            if 'source_labels' in item:
+                for label in item['source_labels']:
+                    edge_list.add_source_label(label)
 
-            if 'target_tags' in item:
-                for tag in item['target_tags']:
-                    edge_list.add_target_tag(tag)
+            if 'target_labels' in item:
+                for label in item['target_labels']:
+                    edge_list.add_target_label(label)
 
             graph.add_edge_list(edge_list)
 
@@ -409,9 +409,9 @@ class GraphSpec(object):
                         ColumnSpec.from_dict(column_data)
                     )
 
-            if 'tags' in item:
-                for tag in item['tags']:
-                    node_list.add_tag(tag)
+            if 'labels' in item:
+                for label in item['labels']:
+                    node_list.add_label(label)
 
             graph.add_node_list(node_list)
 
