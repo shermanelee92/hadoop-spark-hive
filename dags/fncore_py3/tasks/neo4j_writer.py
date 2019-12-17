@@ -279,7 +279,7 @@ def write_neo4j_nodes(graph_specification, spark_config):
 
                 # Get the labelled fields
                 labelledfields = get_fields_with_property(
-                    node_kind, prop='use_as_label')
+                    node_kind, prop='no_append')
 
                 # I suppose these are temp labels...?
                 indexfields = ['_label' if k == 0 else '_label_' + str(k)

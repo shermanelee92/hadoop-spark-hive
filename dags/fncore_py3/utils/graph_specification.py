@@ -63,7 +63,7 @@ class ColumnSchema(Schema, NoNullDump):
     variable_definition = fields.Str(validate=validate_variable_definition)
     resolution_alias = fields.Str()
     hidden = fields.Bool(default=False)
-    use_as_label = fields.Bool(default=False)
+    no_append = fields.Bool(default=False)
 
 
 class NodeListSchema(Schema, NoNullDump):
@@ -156,13 +156,13 @@ class ColumnSpec(object):
                  variable_definition=None,
                  resolution_alias=None,
                  hidden=False,
-                 use_as_label=False):
+                 no_append=False):
         self.name = name
         self.friendly_name = friendly_name
         self.variable_definition = variable_definition
         self.resolution_alias = resolution_alias
         self.hidden = hidden
-        self.use_as_label = use_as_label
+        self.no_append = no_append
 
     @classmethod
     def from_dict(cls, data):

@@ -27,7 +27,7 @@
           "variable_definition": "String",
           "friendly_name": "sweetness number",
           "name": "prop",
-          "use_as_label": "True"
+          "no_append": "True"
         }
       ],
       "index_column": {
@@ -47,7 +47,7 @@
           "variable_definition": "String",
           "friendly_name": "sweetness number",
           "name": "prop",
-          "use_as_label": "True"
+          "no_append": "True"
         },
         {
           "variable_definition": "String",
@@ -104,7 +104,7 @@
           "variable_definition": "String",
           "friendly_name": "edge_metadata",
           "name": "src_meta",
-          "use_as_label": "True"
+          "no_append": "True"
         }
       ],
       "name": "toffee_relations",

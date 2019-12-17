@@ -155,7 +155,7 @@ def load_transform_nodes(graph_specification,
                 [column.safe_name
                  for column
                  in node_kind.metadata_columns + [node_kind.index_column]
-                 if column.use_as_label]),
+                 if column.no_append]),
             default_label_col
         )
 
@@ -207,7 +207,7 @@ def load_transform_nodes_from_edge_tables(graph_specification,
                 [col(column.safe_name)
                  for column
                  in edge_kind.source_metadata_columns
-                 if column.use_as_label]),
+                 if column.no_append]),
             lit(None)
         )
 
@@ -216,7 +216,7 @@ def load_transform_nodes_from_edge_tables(graph_specification,
                 [col(column.safe_name)
                  for column
                  in edge_kind.target_metadata_columns
-                 if column.use_as_label]),
+                 if column.no_append]),
             lit(None)
         )
 
