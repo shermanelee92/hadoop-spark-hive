@@ -11,6 +11,10 @@ from croniter import (CroniterBadCronError, CroniterBadDateError,
 from marshmallow import (Schema, ValidationError, fields, post_dump,
                          validates_schema)
 
+
+# TODO: I don't understand wtf the safe name does... we manually encode it????
+
+
 # The location of urlparse varies between Python 2 and 3
 try:
     from urllib.parse import unquote
@@ -54,6 +58,15 @@ class NoNullDump(object):  # pylint: disable= too-few-public-methods
         """ Strip null values before dumping """
         return {k: v for (k, v) in data.items() if v is not None}
 
+class IndexSchema(Schema, NoNullDump):
+    """ Basic index column schema """
+    name = fields.Str(required=True)
+    safe_name = fields.Str(dump_only=True)
+    friendly_name = fields.Str()
+    variable_definition = fields.Str(validate=validate_variable_definition)
+    resolution_alias = fields.Str()
+    hidden = False
+    use_as_label = False
 
 class ColumnSchema(Schema, NoNullDump):
     """ Basic column schema """
@@ -63,7 +76,7 @@ class ColumnSchema(Schema, NoNullDump):
     variable_definition = fields.Str(validate=validate_variable_definition)
     resolution_alias = fields.Str()
     hidden = fields.Bool(default=False)
-    no_append = fields.Bool(default=False)
+    use_as_label = fields.Bool(default=False)
 
 
 class NodeListSchema(Schema, NoNullDump):
@@ -72,7 +85,7 @@ class NodeListSchema(Schema, NoNullDump):
     safe_name = fields.Str(dump_only=True)
     table_name = fields.Str(required=True)
     safe_table_name = fields.Str(dump_only=True)
-    index_column = fields.Nested(ColumnSchema, required=True)
+    index_column = fields.Nested(IndexSchema, required=True)
     metadata_columns = fields.Nested(ColumnSchema, many=True, required=False)
     labels = fields.List(fields.Str())
 
@@ -83,9 +96,11 @@ class EdgeListSchema(Schema, NoNullDump):
     safe_name = fields.Str(dump_only=True)
     table_name = fields.Str(required=True)
     safe_table_name = fields.Str(dump_only=True)
-    index_column = fields.Nested(ColumnSchema, required=False)
-    source_column = fields.Nested(ColumnSchema, required=True)
-    target_column = fields.Nested(ColumnSchema, required=True)
+    merge_same = fields.Bool(default=True)
+    # FIXME: deprecate index column? IDK...
+    index_column = fields.Nested(IndexSchema, required=False)
+    source_column = fields.Nested(IndexSchema, required=True)
+    target_column = fields.Nested(IndexSchema, required=True)
     weight_column = fields.Nested(ColumnSchema, required=False)
     metadata_columns = fields.Nested(ColumnSchema, many=True, required=False)
     source_metadata_columns = fields.Nested(ColumnSchema, many=True, required=False)
@@ -156,13 +171,13 @@ class ColumnSpec(object):
                  variable_definition=None,
                  resolution_alias=None,
                  hidden=False,
-                 no_append=False):
+                 use_as_label=False):
         self.name = name
         self.friendly_name = friendly_name
         self.variable_definition = variable_definition
         self.resolution_alias = resolution_alias
         self.hidden = hidden
-        self.no_append = no_append
+        self.use_as_label = use_as_label
 
     @classmethod
     def from_dict(cls, data):
@@ -239,6 +254,14 @@ class NodeListSpec(GListSpec):
             name, table_name, index_column, metadata_columns, labels
         )
 
+    def to_dict(self):
+        """Reverse of 'from_dict' with additional auto-generated fields."""
+        data, errors = NodeListSchema().dump(self)
+        if errors:
+            raise ValueError(errors)
+        else:
+            return data
+
 
 class EdgeListSpec(GListSpec):
     """Edge list model"""
@@ -248,6 +271,7 @@ class EdgeListSpec(GListSpec):
                  table_name,
                  source_column,
                  target_column,
+                 merge_same=True,
                  weight_column=None,
                  index_column=None,
                  metadata_columns=None,
@@ -261,6 +285,7 @@ class EdgeListSpec(GListSpec):
             name, table_name, index_column, metadata_columns, labels
         )
 
+        self.merge_same = merge_same
         self.source_column = source_column
         self.target_column = target_column
         self.weight_column = weight_column
@@ -304,6 +329,14 @@ class EdgeListSpec(GListSpec):
     def add_target_label(self, label):
         """Add a label """
         self.target_labels.append(label)
+
+    def to_dict(self):
+        """Reverse of 'from_dict' with additional auto-generated fields."""
+        data, errors = EdgeListSchema().dump(self)
+        if errors:
+            raise ValueError(errors)
+        else:
+            return data
 
 class GraphSpec(object):
     """Graph specification model"""
@@ -357,12 +390,14 @@ class GraphSpec(object):
             edge_list = EdgeListSpec(
                 name=item['name'],
                 table_name=item['table_name'],
+                merge_same=item.get('merge_same', True),
                 source_column=ColumnSpec.from_dict(item['source_column']),
                 target_column=ColumnSpec.from_dict(item['target_column']),
                 weight_column=ColumnSpec.from_dict(item.get('weight_column')),
                 index_column=ColumnSpec.from_dict(item.get('index_column'))
             )
 
+            # FIXME: Damn messy these...
             if 'metadata_columns' in item:
                 for column_data in item['metadata_columns']:
                     edge_list.add_metadata_column(
@@ -567,28 +602,22 @@ def get_fields_with_property(node_edge_list, prop='hidden'):
     """
     pfields = []
 
-    if 'index_column' in node_edge_list:
-        if node_edge_list['index_column'].get(prop, False):
-            pfields.append(
-                node_edge_list['index_column'].get('safe_name')
-            )
+    for col_type in [
+        'index_column', 'source_column', 'target_column'
+    ]:
+        if col_type in node_edge_list:
+            if node_edge_list[col_type].get(prop, False):
+                pfields.append(
+                    node_edge_list[col_type].get('safe_name')
+                )
 
-    if 'source_column' in node_edge_list:
-        if node_edge_list['source_column'].get(prop, False):
-            pfields.append(
-                node_edge_list['source_column'].get('safe_name')
-            )
-
-    if 'target_column' in node_edge_list:
-        if node_edge_list['target_column'].get(prop, False):
-            pfields.append(
-                node_edge_list['target_column'].get('safe_name')
-            )
-
-    if 'metadata_columns' in node_edge_list:
-        for col in node_edge_list['metadata_columns']:
-            if col.get(prop, False):
-                pfields.append(col.get('safe_name'))
+    for col_type in [
+        'metadata_columns', 'source_metadata_columns', 'target_metadata_columns'
+    ]:
+        if col_type in node_edge_list:
+            for col in node_edge_list[col_type]:
+                if col.get(prop, False):
+                    pfields.append(col.get('safe_name'))
 
     return pfields
 
@@ -597,34 +626,24 @@ def get_friendly_name_mapping(node_edge_list):
     """
     Returns a dictionary of mapping of the column names into friendly names
     """
-    mapping = {}
+    mapping = dict()
 
-    if 'index_column' in node_edge_list:
-        mapping[node_edge_list['index_column']['safe_name']] = \
-            node_edge_list['index_column'].get(
-                'friendly_name',
-                node_edge_list['index_column']['safe_name']
-            )
+    for col_type in [
+        'index_column', 'source_column', 'target_column'
+    ]:
+        if col_type in node_edge_list:
+            mapping[node_edge_list[col_type]['safe_name']] = \
+                node_edge_list[col_type].get(
+                    'friendly_name',
+                    node_edge_list[col_type]['safe_name']
+                )
 
-    if 'source_column' in node_edge_list:
-        mapping[node_edge_list['source_column']['safe_name']] = \
-            node_edge_list['source_column'].get(
-                'friendly_name',
-                node_edge_list['source_column']['safe_name']
-            )
-
-    if 'target_column' in node_edge_list:
-        mapping[node_edge_list['target_column']['safe_name']] = \
-            node_edge_list['target_column'].get(
-                'friendly_name',
-                node_edge_list['target_column']['safe_name']
-            )
-
-    if 'metadata_columns' in node_edge_list:
-        for col in node_edge_list['metadata_columns']:
-            mapping[col['safe_name']] = \
-                col.get('friendly_name', col['safe_name'])
-
-    # FIXME: source_metadata, target_metadata
+    for col_type in [
+        'metadata_columns', 'source_metadata_columns', 'target_metadata_columns'
+    ]:
+        if col_type in node_edge_list:
+            for col in node_edge_list[col_type]:
+                mapping[col['safe_name']] = \
+                    col.get('friendly_name', col['safe_name'])
 
     return mapping

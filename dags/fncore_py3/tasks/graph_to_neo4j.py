@@ -26,10 +26,11 @@ from uuid import uuid4
 
 from pyspark.sql import DataFrame, HiveContext, SQLContext
 from pyspark.sql.functions import (col, collect_set, explode, lit, split, trim,
-                                   udf, explode_outer)
-from pyspark.sql.types import ArrayType, StringType
+                                   udf, explode_outer, concat_ws, when, collect_list, element_at)
+from pyspark.sql.types import ArrayType, StringType, StructType
 
 from fncore_py3.tasks.neo4j_manager import build_db
+from fncore_py3.utils.graph_specification import GraphSpec, get_friendly_name_mapping, NodeListSpec
 from fncore_py3.utils.spark_tools import get_spark_context
 
 
@@ -55,15 +56,42 @@ def array_to_str(delimiter):
     return udf(lambda iterable: delimiter.join(iterable), StringType())
 
 
-def union_all(iterable):
+def union_all_by_name(spark_context, iterable):
     """
-    Union all the Spark data frames in an iterable
+    Union all the Spark data frames in an iterable by their column names
+    Any missing columns will be filled with all nulls
 
     :param iterable: an iterable of spark data frames
     :type iterable: an iterable of spark data frames
     """
-    # TODO: Handle empty iterator
-    return functools.reduce(DataFrame.unionAll, iterable)
+
+    # TODO: Check for column name clash - i.e. same column name but different types
+    # Should do it in the graph spec stage?
+    # If we store in hive can do a name-type pair check quite easily
+
+    sql_context = HiveContext(spark_context)
+
+    # Union of schema, create empty init DF
+    schema_acc = StructType([])
+    df_acc = sql_context.createDataFrame([], schema_acc)
+
+    # Create null cols of df does not contain column
+    def gen_select_params(schema, df):
+        return [
+            col(c) if c in df.columns
+            else lit(None).alias(c)
+            for c in schema.fieldNames()
+        ]
+
+    for df in iterable:
+        schema_acc = StructType(
+            list(set(schema_acc.fields + df.schema.fields))
+        )
+        df_acc = df_acc.select(*gen_select_params(schema_acc, df_acc)).unionByName(
+            df.select(*gen_select_params(schema_acc, df))
+        )
+
+    return df_acc
 
 
 def to_pandas_iterator(dataframe, max_result_size=1e9, factor=1.5):
@@ -117,7 +145,6 @@ def load_transform_nodes(graph_specification,
                          spark_context,
                          input_node_path,
                          output_node_id_col,
-                         output_props_col,
                          output_label_col,
                          data_format='parquet',
                          array_delimiter=';'):
@@ -132,8 +159,6 @@ def load_transform_nodes(graph_specification,
     :type input_node_path: str
     :param output_node_id_col: Column name to use for node id.
     :type output_node_id_col: str
-    :param output_props_col: Column name to use for node properties.
-    :type output_props_col: str
     :param output_label_col: Column name to use for node labels.
     :type output_label_col: str
     :param data_format: Format to read and write files for this graph.
@@ -144,38 +169,59 @@ def load_transform_nodes(graph_specification,
     sql_context = HiveContext(spark_context)
 
     for node_kind in graph_specification.node_lists:
-        actual_node_id_col = node_kind.index_column.safe_name
 
-        default_properties_col = '-'.join(['_default_label', str(uuid4())])
+        # Friendly names mapping
+        mapping = get_friendly_name_mapping(node_kind.to_dict())
 
-        # I don't get this definition, we only return one label when there could be many?
-        # TODO: It should support mutltiple _label (or properties) per table
-        actual_properties_col = next(
-            iter(
-                [column.safe_name
-                 for column
-                 in node_kind.metadata_columns + [node_kind.index_column]
-                 if column.no_append]),
-            default_properties_col
-        )
-
-        node_labels = array_delimiter.join(node_kind.labels)
-
+        # Read data
         data = (sql_context.read
                 .format(data_format)
                 .option('header', 'true')
                 .option('inferschema', 'true')
-                .load(os.path.join(input_node_path, node_kind.safe_name)))
+                .load(os.path.join(input_node_path, node_kind.safe_table_name)))
 
-        transformed = (
+        # Columns to be used as node :LABELS
+        label_col_names = [
+            column.safe_name for column
+            in node_kind.metadata_columns
+            if column.use_as_label and not column.hidden
+        ]
+
+        # Prepend the base labels
+        all_label_cols = [lit(l) for l in node_kind.labels] + [col(c) for c in label_col_names]
+
+        # Non label metadata columns i.e. properties
+        prop_columns = [
+            column.safe_name for column
+            in node_kind.metadata_columns
+            if not column.use_as_label and not column.hidden
+        ]
+
+        data1 = (
             data
-            .withColumn(default_properties_col, lit(None).cast(StringType()))
-            .select(actual_node_id_col, actual_properties_col)
-            .withColumnRenamed(actual_node_id_col, output_node_id_col)
-            .withColumnRenamed(actual_properties_col, output_props_col)
-            .withColumn(output_label_col, lit(node_labels).cast(StringType()))
-            .withColumn(output_label_col, explode(split(col(output_label_col), array_delimiter)))
-            .select(output_node_id_col, output_props_col, output_label_col)
+            # Make canonical id column
+            .withColumn(output_node_id_col, col(node_kind.index_column.safe_name))
+            # Make concatenated label column
+            .withColumn(output_label_col, concat_ws(array_delimiter, *all_label_cols))
+            .withColumn(output_label_col, when(col(output_label_col) != '', col(output_label_col)).otherwise(None))
+            # Drop label columns, since they have been concatenated
+            # Drop node_id column since new _canonical_id column has been created
+            .select(*([output_node_id_col, output_label_col] + prop_columns))
+        )
+
+        # For columns except output_node_id_col and output_label_col, rename to friendly name
+        data2 = data1
+        for c in data2.columns:
+            if c not in [output_node_id_col, output_label_col]:
+                data2 = data2.withColumnRenamed(c, mapping[c])
+
+        # Explode concat labels, then distinct
+        transformed = (
+            data2
+            .withColumn(
+                output_label_col,
+                explode_outer(split(col(output_label_col), array_delimiter))
+            )
             .distinct()
         )
 
@@ -188,7 +234,6 @@ def load_transform_nodes_from_edge_tables(graph_specification,
                                           spark_context,
                                           input_edge_path,
                                           output_node_id_col,
-                                          output_props_col,
                                           output_label_col,
                                           data_format='parquet',
                                           array_delimiter=';'):
@@ -196,75 +241,60 @@ def load_transform_nodes_from_edge_tables(graph_specification,
     sql_context = HiveContext(spark_context)
 
     for edge_kind in graph_specification.edge_lists:
-        data = (sql_context
-                .read.format(data_format)
-                .option('header', 'true')
-                .option('inferschema', 'true')
-                .load(os.path.join(input_edge_path, edge_kind.safe_name)))
 
-        source_props_col = next(
-            iter(
-                [col(column.safe_name)
-                 for column
-                 in edge_kind.source_metadata_columns
-                 if column.no_append]),
-            lit(None)
-        )
-
-        target_props_col = next(
-            iter(
-                [col(column.safe_name)
-                 for column
-                 in edge_kind.target_metadata_columns
-                 if column.no_append]),
-            lit(None)
-        )
-
-        source_node_labels = array_delimiter.join(edge_kind.source_labels)
-        if not source_node_labels:
-            source_node_labels = None
-        target_node_labels = array_delimiter.join(edge_kind.target_labels)
-        if not target_node_labels:
-            target_node_labels = None
-
-        nodes_concat = union_all([
-            data.select(
-                col(edge_kind.source_column.safe_name).alias(output_node_id_col),
-                source_props_col.alias(output_props_col),
-                lit(source_node_labels).cast(StringType()).alias(output_label_col)
-            ),
-            data.select(
-                col(edge_kind.target_column.safe_name).alias(output_node_id_col),
-                target_props_col.alias(output_props_col),
-                lit(target_node_labels).cast(StringType()).alias(output_label_col)
+        # Make a temporary graph spec so I can use load_transform_nodes to parse the edge table source nodes
+        source_spec = GraphSpec(name=graph_specification.name)
+        source_spec.add_node_list(
+            NodeListSpec(
+                name=edge_kind.name,
+                table_name=edge_kind.table_name,
+                index_column=edge_kind.source_column,
+                metadata_columns=edge_kind.source_metadata_columns,
+                labels=edge_kind.source_labels
             )
-        ])
-
-        transformed = (
-            nodes_concat
-            .select(
-                output_node_id_col,
-                output_props_col,
-                explode_outer(split(col(output_label_col), array_delimiter)).alias(output_label_col)
-            )
-            .distinct()
         )
 
-        yield transformed
+        yield from load_transform_nodes(source_spec,
+                                        spark_context,
+                                        input_edge_path,
+                                        output_node_id_col,
+                                        output_label_col,
+                                        data_format=data_format,
+                                        array_delimiter=array_delimiter)
+
+        # Make a temporary graph spec so I can use load_transform_nodes to parse the edge table target nodes
+        target_spec = GraphSpec(name=graph_specification.name)
+        target_spec.add_node_list(
+            NodeListSpec(
+                name=edge_kind.name,
+                table_name=edge_kind.table_name,
+                index_column=edge_kind.target_column,
+                metadata_columns=edge_kind.target_metadata_columns,
+                labels=edge_kind.target_labels
+            )
+        )
+
+        yield from load_transform_nodes(target_spec,
+                                        spark_context,
+                                        input_edge_path,
+                                        output_node_id_col,
+                                        output_label_col,
+                                        data_format=data_format,
+                                        array_delimiter=array_delimiter)
+
 
 def get_combined_nodes(graph_specification,
                        spark_config,
                        input_node_path,
                        input_edge_path,
                        output_node_id_col,
-                       output_props_col,
                        output_label_col,
                        common_labels,
                        data_format='parquet',
                        array_delimiter=';',
                        max_result_size=1e9):
     """
-    Return a Pandas data frame of the combined nodes
+    Return a Pandas data frame of the combined nodes,
 
     :param graph_specification: Graph specification.
     :type graph_specification: fncore.utils.graph_specification.GraphSpec
@@ -274,8 +304,6 @@ def get_combined_nodes(graph_specification,
     :type input_node_path: str
     :param output_node_id_col: Column name to use for node id.
     :type output_node_id_col: str
-    :param output_props_col: Column name to use for node label.
-    :type output_props_col: str
     :param output_label_col: Column name to use for node label.
     :type output_label_col: str
     :param common_labels: Common labels to append to all the nodes
@@ -294,7 +322,6 @@ def get_combined_nodes(graph_specification,
             spark_context=spark_context,
             input_node_path=input_node_path,
             output_node_id_col=output_node_id_col,
-            output_props_col=output_props_col,
             output_label_col=output_label_col,
             data_format=data_format,
             array_delimiter=array_delimiter
@@ -305,36 +332,43 @@ def get_combined_nodes(graph_specification,
             spark_context=spark_context,
             input_edge_path=input_edge_path,
             output_node_id_col=output_node_id_col,
-            output_props_col=output_props_col,
             output_label_col=output_label_col,
             data_format=data_format,
             array_delimiter=array_delimiter
         )
 
+        # Union all the node df, then drop those with no id
+        nodes_union = (
+            union_all_by_name(
+                spark_context,
+                chain(transformed_node_lists, transformed_node_from_edges_lists)
+            )
+            .filter(col(output_node_id_col) != '')
+            .dropna(how='any', subset=[output_node_id_col])
+        )
+
+        # Group by node id, collect labels, condense properties
+        prop_columns = [
+            c for c in nodes_union.columns
+            if c not in [output_node_id_col, output_label_col]
+        ]
         nodes_formatted = (
-            union_all(chain(
-                transformed_node_lists,
-                transformed_node_from_edges_lists
-            ))
+            nodes_union
             .groupby(output_node_id_col)
-            .agg(collect_set(output_props_col).alias(output_props_col),
-                 collect_set(output_label_col).alias(output_label_col))
+            .agg(
+                collect_set(output_label_col).alias(output_label_col),
+                # FIXME: Naive logic - take final value of property if any clashes
+                # FIXME: Best would be take the corresponding latest timestamp
+                *[element_at(collect_list(c), -1).alias(c) for c in prop_columns]
+            )
             .withColumn(output_label_col, prepend(common_labels)(output_label_col))
-            .withColumn(output_props_col, array_to_str(array_delimiter)(output_props_col))
             .withColumn(output_label_col, array_to_str(array_delimiter)(output_label_col))
             .repartition(1000)
             .cache()
         )
 
-        # Drop nodes with empty id (required field)
-        nodes_dropped = (
-            nodes_formatted
-            .filter(nodes_formatted[output_node_id_col] != '')
-            .dropna(how='any', subset=[output_node_id_col])
-        )
-
         # Return the dataframe in batches
-        for dataframe in to_pandas_iterator(nodes_dropped, max_result_size=max_result_size):
+        for dataframe in to_pandas_iterator(nodes_formatted, max_result_size=max_result_size):
             yield dataframe
 
 
@@ -343,8 +377,6 @@ def get_combined_nodes(graph_specification,
 def get_transformed_edges(graph_specification,
                           spark_config,
                           input_edge_path,
-                          input_source_col,
-                          input_target_col,
                           output_source_col,
                           output_target_col,
                           output_label_col,
@@ -352,8 +384,20 @@ def get_transformed_edges(graph_specification,
                           array_delimiter=';',
                           max_result_size=1e9):
     """
-    A generator that returns a Panda data frame of each processed edge
+    A generator that returns a Pandas data frame of each processed edge
     in the graph specification
+
+    We allow for multi-edges between nodes in our graph
+
+    In the processing of edge tables to actual graph edges, we check for the existence of
+    a index_column, if it exists, we take each entry in the table as a unique edge
+    else, we group edges by the same source and target (S->T) ids
+
+    We cannot merge edges across tables, meaning if the edges with the same (S->T) exists
+    across multiple edge tables, they would become multi-edges in the final graph regardless
+    of the presence the `index_column`
+
+    FIXME: Perhaps going by merge_edge flag is more explicit than a index_column exists method
 
     :param graph_specification: Graph specification.
     :type graph_specification: fncore.utils.graph_specification.GraphSpec
@@ -376,6 +420,10 @@ def get_transformed_edges(graph_specification,
     """
 
     for edge_kind in graph_specification.edge_lists:
+
+        # Friendly names mapping
+        mapping = get_friendly_name_mapping(edge_kind.to_dict())
+
         with get_spark_context(spark_config.create()) as spark_context:
             sql_context = SQLContext(spark_context)
 
@@ -383,57 +431,92 @@ def get_transformed_edges(graph_specification,
                     .read.format(data_format)
                     .option('header', 'true')
                     .option('inferschema', 'true')
-                    .load(os.path.join(input_edge_path, edge_kind.safe_name)))
+                    .load(os.path.join(input_edge_path, edge_kind.safe_table_name)))
 
-            edge_kind_columns = (
-                edge_kind.metadata_columns
-                + [edge_kind.source_column]
+            # Select only the relevant columns
+            identity_columns = (
+                [edge_kind.source_column]
                 + [edge_kind.target_column]
+                + ([edge_kind.index_column] if edge_kind.index_column else [])
+            )
+            info_columns = (
+                edge_kind.metadata_columns
                 + ([edge_kind.index_column] if edge_kind.index_column else [])
                 + ([edge_kind.weight_column] if edge_kind.weight_column else [])
             )
 
-            transformed = data
+            # Columns to be used as node :TYPES; we use "labels" as a synonym for "type" in this segment
+            # for consistency
+            label_col_names = [
+                column.safe_name for column
+                in info_columns
+                if column.use_as_label and not column.hidden
+            ]
 
-            # Drops duplicates (if index column does not exist)
-            # TODO: Support multi field index in the future
-            if not edge_kind.index_column:
-                dedup_columns = (
-                    [edge_kind.source_column.safe_name]
-                    + [edge_kind.target_column.safe_name]
-                )
-                transformed = transformed.dropDuplicates(subset=dedup_columns)
+            # Prepend the base labels
+            all_label_cols = [lit(l) for l in edge_kind.labels] + [col(c) for c in label_col_names]
 
-            for column in edge_kind_columns:
-                transformed = transformed.withColumnRenamed(
-                    column.safe_name,
-                    column.friendly_name or column.name
-                )
+            # Non label metadata columns i.e. properties
+            prop_columns = [
+                column.safe_name for column
+                in info_columns
+                if not column.use_as_label and not column.hidden
+            ]
 
-            edge_labels = array_delimiter.join(edge_kind.labels)
-
-            transformed = (
-                transformed
-                .withColumn(output_source_col, trim(transformed[input_source_col]))
-                .withColumn(output_target_col, trim(transformed[input_target_col]))
-                .withColumn(output_label_col, lit(edge_labels))
+            data1 = (
+                data
+                .select(*[c.safe_name for c in identity_columns + info_columns])
+                # Make canonical id columnS
+                .withColumn(output_source_col, col(edge_kind.source_column.safe_name))
+                .withColumn(output_target_col, col(edge_kind.target_column.safe_name))
+                # Make concatenated label column
+                .withColumn(output_label_col, concat_ws(array_delimiter, *all_label_cols))
+                .withColumn(output_label_col, when(col(output_label_col) != '', col(output_label_col)).otherwise(None))
+                # Drop label columns, since they have been concatenated
+                # Drop node_id column since new _canonical_id column has been created
+                .select(*(
+                    [output_source_col, output_target_col, output_label_col] +
+                    prop_columns
+                    ))
             )
 
-            transformed = (
-                transformed
+            # Drop any edge that is incomplete source/target id
+            nodes_dropped = (
+                data1
                 .dropna(how='any', subset=[output_source_col, output_target_col])
-                .filter(transformed[output_source_col] != '')
-                .filter(transformed[output_target_col] != '')
+                .filter(col(output_source_col) != '')
+                .filter(col(output_target_col) != '')
             )
 
-            transformed = (
-                transformed
-                .select(
-                    input_source_col, input_target_col,
-                    output_source_col, output_target_col,
-                    output_label_col
+            # If not indexed, means condense all edges with same source and target ids
+            # Else, just keep the table as is
+            transformed = nodes_dropped
+            if not edge_kind.index_column:
+                transformed = (
+                    transformed
+                    .withColumn(
+                    output_label_col,
+                    explode_outer(split(col(output_label_col), array_delimiter))
+                    )
+                    .distinct()
+                    .groupby([output_source_col, output_target_col])
+                    .agg(
+                        collect_set(output_label_col).alias(output_label_col),
+                        # FIXME: Naive logic - take final value of property if any clashes
+                        # FIXME: Best would be take the corresponding latest timestamp
+                        *[element_at(collect_list(c), -1).alias(c) for c in prop_columns]
+                    )
+                    # .withColumn(output_label_col, prepend(common_labels)(output_label_col))
+                    .withColumn(output_label_col, array_to_str(array_delimiter)(output_label_col))
+                    .repartition(1000)
+                    .cache()
                 )
-            )
+
+            # For columns except source/target cols and output_label_col,
+            # rename to friendly name
+            for c in transformed.columns:
+                if c not in [output_source_col, output_target_col, output_label_col]:
+                    transformed = transformed.withColumnRenamed(c, mapping[c])
 
             for dataframe in to_pandas_iterator(transformed, max_result_size=max_result_size):
                 yield dataframe
@@ -488,7 +571,6 @@ def graph_to_neo4j(graph_specification,
             input_node_path=input_node_path,
             input_edge_path=input_edge_path,
             output_node_id_col='_canonical_id:ID',
-            output_props_col='_label',
             output_label_col=':LABEL',
             common_labels=['_searchable'],
             array_delimiter=';',
@@ -497,7 +579,7 @@ def graph_to_neo4j(graph_specification,
         )
 
         # Iteratively export out the nodes
-        for i,curnode in enumerate(nodes):
+        for i, curnode in enumerate(nodes):
 
             # Get a temporary file to ensure we are not overwriting any existing
             # files
@@ -526,14 +608,12 @@ def graph_to_neo4j(graph_specification,
                 curnode.to_csv(os.path.join(debugsavepath, 'node{}.csv'.format(i)))
 
         # Get a generator of the edges
-        # Iterates over each edge_kind.safe_name
+        # Iterates over each edge_kind.safe_table_name
         # Each one can be further batched if large
         edges_result = get_transformed_edges(
             graph_specification=graph_specification,
             spark_config=spark_config,
             input_edge_path=input_edge_path,
-            input_source_col='_canonical_id_source',
-            input_target_col='_canonical_id_target',
             output_source_col=':START_ID',
             output_target_col=':END_ID',
             output_label_col=':TYPE',

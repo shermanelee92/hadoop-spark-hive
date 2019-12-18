@@ -13,7 +13,9 @@
       "index_column": {
         "resolution_alias": "chocolate",
         "variable_definition": "String",
-        "name": "id"
+        "name": "id",
+        "unrecognized-key": "value",
+        "hidden": "True"
       }
     },
     {
@@ -27,7 +29,7 @@
           "variable_definition": "String",
           "friendly_name": "sweetness number",
           "name": "prop",
-          "no_append": "True"
+          "use_as_label": "False"
         }
       ],
       "index_column": {
@@ -47,7 +49,7 @@
           "variable_definition": "String",
           "friendly_name": "sweetness number",
           "name": "prop",
-          "no_append": "True"
+          "use_as_label": "True"
         },
         {
           "variable_definition": "String",
@@ -103,8 +105,7 @@
         {
           "variable_definition": "String",
           "friendly_name": "edge_metadata",
-          "name": "src_meta",
-          "no_append": "True"
+          "name": "src_meta"
         }
       ],
       "name": "toffee_relations",
@@ -117,7 +118,20 @@
         "name": "toffee_t"
       },
       "target_labels": [
-        "edge_label"
+        "is_target"
+      ],
+      "metadata_columns": [
+        {
+          "variable_definition": "String",
+          "friendly_name": "edge_prop_friendly",
+          "name": "edge_prop"
+        },
+        {
+          "variable_definition": "String",
+          "friendly_name": "edge_label",
+          "name": "edge_label",
+          "use_as_label": "True"
+        }
       ]
     }
   ]
