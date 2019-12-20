@@ -134,5 +134,28 @@
         }
       ]
     }
+  ],
+  "node_group_lists": [
+    {
+      "table_name": "test_data_toffee_groups_list",
+      "name": "toffee group nodes",
+      "labels": [
+        "toffee_groups"
+      ],
+      "index_column": {
+        "resolution_alias": "sweets",
+        "variable_definition": "String",
+        "name": "id"
+      },
+      "grouping_columns": [
+        {
+          "name": "group",
+          "friendly_name": "common_group"
+        }
+      ],
+      "edge_labels" : [
+        "edge_group_type"
+      ]
+    }
   ]
 }

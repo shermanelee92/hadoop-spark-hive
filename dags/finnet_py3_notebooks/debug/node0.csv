@@ -5,7 +5,7 @@
 3,36,_searchable;chocolate,,
 4,12,_searchable;sweets;chocolate,12,
 5,illegal ΁code,_searchable;chocolate,,
-6,3,_searchable;is_target;sweets;chocolate;toffee;6,3,foo
+6,3,_searchable;is_target;sweets;toffee_groups;chocolate;toffee;6,3,foo
 7,8,_searchable;1;sweets;chocolate;toffee,8,bar
 8,31,_searchable;chocolate,,
 9,27,_searchable;chocolate,,
@@ -14,16 +14,16 @@
 12,15,_searchable;sweets,15,
 13,26,_searchable;chocolate,,
 14,23,_searchable;chocolate,,
-15,1,_searchable;is_target;sweets;8;chocolate;toffee,1,foo
+15,1,_searchable;is_target;sweets;toffee_groups;8;chocolate;toffee,1,foo
 16,32,_searchable;chocolate,,
-17,2,_searchable;sweets;chocolate;toffee;7,2,foo
+17,2,_searchable;sweets;toffee_groups;chocolate;toffee;7,2,foo
 18,22,_searchable;chocolate,,
 19,28,_searchable;chocolate,,
 20,18,_searchable;sweets;chocolate,18,
 21,98,_searchable,,
 22,19,_searchable;sweets;chocolate,19,
 23,25,_searchable;chocolate,,
-24,4,_searchable;is_target;sweets;5;chocolate;toffee,4,bar
+24,4,_searchable;is_target;sweets;toffee_groups;5;chocolate;toffee,4,bar
 25,29,_searchable;chocolate,,
 26,17,_searchable;sweets;chocolate,17,
 27,99,_searchable,,
@@ -33,8 +33,8 @@
 31,30,_searchable;chocolate,,
 32,7,_searchable;is_target;sweets;2;chocolate;toffee,7,bar
 33,11,_searchable;sweets;chocolate,11,
-34,0,_searchable;is_target;sweets;chocolate;9;toffee,0,
-35,6,_searchable;is_target;3;sweets;chocolate;toffee,6,bar
+34,0,_searchable;is_target;sweets;toffee_groups;chocolate;9;toffee,0,
+35,6,_searchable;is_target;3;sweets;toffee_groups;chocolate;toffee,6,bar
 36,33,_searchable;chocolate,,
 37,37,_searchable;chocolate,,
 38,38,_searchable;chocolate,,
@@ -43,4 +43,4 @@
 41,21,_searchable;chocolate,,
 42,14,_searchable;sweets;chocolate,14,
 43,test ΄id,_searchable;chocolate,,
-44,5,_searchable;is_target;sweets;chocolate;4;toffee,5,bar
+44,5,_searchable;is_target;sweets;toffee_groups;chocolate;4;toffee,5,bar

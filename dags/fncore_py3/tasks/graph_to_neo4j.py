@@ -21,12 +21,12 @@ import functools
 import os
 import shutil
 import tempfile
-from itertools import chain
+from itertools import chain, combinations
 from uuid import uuid4
 
 from pyspark.sql import DataFrame, HiveContext, SQLContext
-from pyspark.sql.functions import (col, collect_set, explode, lit, split, trim,
-                                   udf, explode_outer, concat_ws, when, collect_list, element_at)
+from pyspark.sql.functions import (array, array_distinct, array_join, col, collect_set, explode, lit, split, trim, flatten,
+                                   udf, explode_outer, concat_ws, when, collect_list, last, element_at)
 from pyspark.sql.types import ArrayType, StringType, StructType
 
 from fncore_py3.tasks.neo4j_manager import build_db
@@ -168,7 +168,7 @@ def load_transform_nodes(graph_specification,
     """
     sql_context = HiveContext(spark_context)
 
-    for node_kind in graph_specification.node_lists:
+    for node_kind in graph_specification.node_lists + graph_specification.node_group_lists:
 
         # Friendly names mapping
         mapping = get_friendly_name_mapping(node_kind.to_dict())
@@ -396,7 +396,6 @@ def get_transformed_edges(graph_specification,
     We cannot merge edges across tables, meaning if the edges with the same (S->T) exists
     across multiple edge tables, they would become multi-edges in the final graph regardless
     of the presence the `index_column`
-
     FIXME: Perhaps going by merge_edge flag is more explicit than a index_column exists method
 
     :param graph_specification: Graph specification.
@@ -434,11 +433,6 @@ def get_transformed_edges(graph_specification,
                     .load(os.path.join(input_edge_path, edge_kind.safe_table_name)))
 
             # Select only the relevant columns
-            identity_columns = (
-                [edge_kind.source_column]
-                + [edge_kind.target_column]
-                + ([edge_kind.index_column] if edge_kind.index_column else [])
-            )
             info_columns = (
                 edge_kind.metadata_columns
                 + ([edge_kind.index_column] if edge_kind.index_column else [])
@@ -465,7 +459,6 @@ def get_transformed_edges(graph_specification,
 
             data1 = (
                 data
-                .select(*[c.safe_name for c in identity_columns + info_columns])
                 # Make canonical id columnS
                 .withColumn(output_source_col, col(edge_kind.source_column.safe_name))
                 .withColumn(output_target_col, col(edge_kind.target_column.safe_name))
@@ -495,8 +488,8 @@ def get_transformed_edges(graph_specification,
                 transformed = (
                     transformed
                     .withColumn(
-                    output_label_col,
-                    explode_outer(split(col(output_label_col), array_delimiter))
+                        output_label_col,
+                        explode_outer(split(col(output_label_col), array_delimiter))
                     )
                     .distinct()
                     .groupby([output_source_col, output_target_col])
@@ -519,6 +512,110 @@ def get_transformed_edges(graph_specification,
                     transformed = transformed.withColumnRenamed(c, mapping[c])
 
             for dataframe in to_pandas_iterator(transformed, max_result_size=max_result_size):
+                yield dataframe
+
+
+# pylint: disable=too-many-arguments
+# pylint: disable=too-many-locals
+def get_transformed_group_edges(graph_specification,
+                                spark_config,
+                                input_group_edge_path,
+                                output_source_col,
+                                output_target_col,
+                                output_label_col,
+                                data_format='parquet',
+                                array_delimiter=';',
+                                max_result_size=1e9):
+
+    for group_edge_kind in graph_specification.node_group_lists:
+
+        # Friendly names mapping
+        mapping = get_friendly_name_mapping(group_edge_kind.to_dict())
+
+        with get_spark_context(spark_config.create()) as spark_context:
+            sql_context = SQLContext(spark_context)
+
+            # Read data
+            data = (sql_context
+                    .read.format(data_format)
+                    .option('header', 'true')
+                    .option('inferschema', 'true')
+                    .load(os.path.join(input_group_edge_path, group_edge_kind.safe_table_name)))
+
+            # Columns to group by, and columns with edge information
+            id_col = group_edge_kind.index_column.safe_name
+            grouping_columns = [c.safe_name for c in group_edge_kind.grouping_columns]
+            grouping_columns_nohide = [
+                column.safe_name for column
+                in group_edge_kind.grouping_columns
+                if not column.use_as_label and not column.hidden
+            ]
+
+
+            # Columns to be used as edge :TYPES
+            label_col_names = [
+                column.safe_name for column
+                in group_edge_kind.edge_metadata_columns
+                if column.use_as_label and not column.hidden
+            ]
+
+            # Prepend the base labels
+            all_label_cols = [lit(l) for l in group_edge_kind.edge_labels] + [col(c) for c in label_col_names]
+
+            # Non label metadata columns i.e. edge properties
+            prop_columns = [
+                column.safe_name for column
+                in group_edge_kind.edge_metadata_columns
+                if not column.use_as_label and not column.hidden
+            ]
+
+            data_group = (
+                data
+                # Collect all labels per row into an array, array ignores null, so we safe?
+                .withColumn(output_label_col, array(*all_label_cols))
+                # Group by the grouping criteria
+                .groupby(*grouping_columns)
+                .agg(
+                    # Collect all nodes into a set, this guarantees uniqueness
+                    collect_set(id_col).alias(id_col),
+                    # Collect all label arrays as array of arrays
+                    # FIXME: What if empty?
+                    collect_list(output_label_col).alias(output_label_col),
+                    # Get last element for properties
+                    *[element_at(collect_list(c), -1).alias(c) for c in prop_columns]
+                )
+                # Flatten labels, get unique, concat
+                .withColumn(
+                    output_label_col,
+                    array_join(array_distinct(flatten(col(output_label_col))), array_delimiter)
+                )
+            )
+
+            # Define udf to make combinations
+            @udf("array<struct<_1: string, _2: string>>")
+            def get_pairs(lst):
+                return combinations(lst, 2)
+
+            data_pairs = (
+                data_group
+                .withColumn(id_col, explode(get_pairs(col(id_col))))
+                .select(
+                    col(id_col + "._1").alias(output_source_col),
+                    col(id_col + "._2").alias(output_target_col),
+                    col(output_label_col),
+                    *[col(c) for c in prop_columns + grouping_columns_nohide]
+                )
+                .repartition(1000)
+                .cache()
+            )
+
+            # For columns except source/target cols and output_label_col,
+            # rename to friendly name
+            for c in data_pairs.columns:
+                if c not in [output_source_col, output_target_col, output_label_col]:
+                    data_pairs = data_pairs.withColumnRenamed(c, mapping[c])
+
+            for dataframe in to_pandas_iterator(data_pairs, max_result_size=max_result_size):
                 yield dataframe
 
 
@@ -620,8 +717,18 @@ def graph_to_neo4j(graph_specification,
             max_result_size=max_result_size
         )
 
+        edge_groups_result = get_transformed_group_edges(
+            graph_specification=graph_specification,
+            spark_config=spark_config,
+            input_group_edge_path=input_edge_path,
+            output_source_col=':START_ID',
+            output_target_col=':END_ID',
+            output_label_col=':TYPE',
+            max_result_size=max_result_size
+        )
+
         # For each edge
-        for i,edges in enumerate(edges_result):
+        for i,edges in enumerate(chain(edges_result, edge_groups_result)):
 
             # Get a temporary file to ensure we are not
             # overwriting any existing files

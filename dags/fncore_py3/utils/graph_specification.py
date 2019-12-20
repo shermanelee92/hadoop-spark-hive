@@ -58,6 +58,7 @@ class NoNullDump(object):  # pylint: disable= too-few-public-methods
         """ Strip null values before dumping """
         return {k: v for (k, v) in data.items() if v is not None}
 
+
 class IndexSchema(Schema, NoNullDump):
     """ Basic index column schema """
     name = fields.Str(required=True)
@@ -67,6 +68,7 @@ class IndexSchema(Schema, NoNullDump):
     resolution_alias = fields.Str()
     hidden = False
     use_as_label = False
+
 
 class ColumnSchema(Schema, NoNullDump):
     """ Basic column schema """
@@ -79,6 +81,7 @@ class ColumnSchema(Schema, NoNullDump):
     use_as_label = fields.Bool(default=False)
 
 
+# FIXME: Why is it called a NodeList???
 class NodeListSchema(Schema, NoNullDump):
     """ NodeList list schema """
     name = fields.Str(required=True)
@@ -110,6 +113,26 @@ class EdgeListSchema(Schema, NoNullDump):
     target_labels = fields.List(fields.Str())
 
 
+class NodeGroupsListSchema(Schema, NoNullDump):
+    """ NodeGroups list schema """
+    name = fields.Str(required=True)
+    safe_name = fields.Str(dump_only=True)
+    table_name = fields.Str(required=True)
+    safe_table_name = fields.Str(dump_only=True)
+    index_column = fields.Nested(IndexSchema, required=True)
+    metadata_columns = fields.Nested(ColumnSchema, many=True, required=False)
+    labels = fields.List(fields.Str())
+    grouping_columns = fields.Nested(ColumnSchema, many=True, required=True)
+    edge_labels = fields.List(fields.Str())
+    edge_metadata_columns = fields.Nested(ColumnSchema, many=True, required=False)
+
+    @validates_schema
+    def check_grouping_columns(self, data):  # pylint: disable=no-self-use
+        """checks at least one grouping column"""
+        if len(data["grouping_columns"]) < 1:
+            raise ValidationError("Require more than 1 grouping column(s)")
+
+
 # pylint: disable=no-self-use
 class GraphSchema(Schema, NoNullDump):
     """ Graph specification schema """
@@ -120,7 +143,8 @@ class GraphSchema(Schema, NoNullDump):
     graph_uri_env = fields.Str(required=False)
     poll = fields.Str(required=True, validate=validate_cron)
     node_lists = fields.Nested(NodeListSchema, many=True, required=False)
-    edge_lists = fields.Nested(EdgeListSchema, many=True, required=True)
+    edge_lists = fields.Nested(EdgeListSchema, many=True, required=False)
+    node_group_lists = fields.Nested(NodeGroupsListSchema, many=True, required=False)
 
     @validates_schema
     def check_uri_and_env(self, data):  # pylint: disable=no-self-use
@@ -146,7 +170,7 @@ class GraphSchema(Schema, NoNullDump):
         """checks that names in 'node_lists' and 'edge_lists' are unique"""
         names = [spec_item['name']
                  for list_name
-                 in ["node_lists", "edge_lists"]
+                 in ["node_lists", "edge_lists", "node_group_lists"]
                  if list_name in data
                  for spec_item
                  in data[list_name]
@@ -338,6 +362,56 @@ class EdgeListSpec(GListSpec):
         else:
             return data
 
+
+class NodeGroupsListSpec(GListSpec):
+    """Node groups list model"""
+    # pylint: disable=too-many-arguments
+    def __init__(self,
+                 name,
+                 table_name,
+                 index_column,
+                 grouping_columns,
+                 metadata_columns=None,
+                 labels=None,
+                 edge_labels=None,
+                 edge_metadata_columns=None,
+                 ):
+
+        super(NodeGroupsListSpec, self).__init__(
+            name, table_name, index_column, metadata_columns, labels
+        )
+
+        self.grouping_columns = grouping_columns
+        self.name_to_edge_metadata_column = OrderedDict()
+        edge_metadata_columns = edge_metadata_columns or []
+        for metadata_column in edge_metadata_columns:
+            self.add_edge_metadata_column(metadata_column)
+        self.edge_labels = edge_labels or []
+
+    @property
+    def edge_metadata_columns(self):
+        """Returns the list of metadata columns"""
+        return list(self.name_to_edge_metadata_column.values())
+
+    def add_edge_metadata_column(self, metadata_column):
+        """Add a metadata column"""
+        self.name_to_edge_metadata_column[metadata_column.name] = \
+            metadata_column
+
+    def add_edge_label(self, label):
+        """Add a label """
+        self.edge_labels.append(label)
+
+    def to_dict(self):
+        """Reverse of 'from_dict' with additional auto-generated fields."""
+        data, errors = NodeGroupsListSchema().dump(self)
+        if errors:
+            raise ValueError(errors)
+        else:
+            return data
+
+
+
 class GraphSpec(object):
     """Graph specification model"""
     # pylint: disable=too-many-instance-attributes
@@ -352,6 +426,7 @@ class GraphSpec(object):
         self.poll = poll
         self.name_to_node_list = OrderedDict()
         self.name_to_edge_list = OrderedDict()
+        self.name_to_node_group_list = OrderedDict()
 
     def add_node_list(self, node_list):
         """Add a node list"""
@@ -360,6 +435,10 @@ class GraphSpec(object):
     def add_edge_list(self, edge_list):
         """Add an edge list"""
         self.name_to_edge_list[edge_list.name] = edge_list
+
+    def add_node_group_list(self, node_group_list):
+        """Add a node list"""
+        self.name_to_node_group_list[node_group_list.name] = node_group_list
 
     # pylint: disable=too-many-branches
     @classmethod
@@ -450,6 +529,37 @@ class GraphSpec(object):
 
             graph.add_node_list(node_list)
 
+        # add the node groups lists
+        for item in validated_data.get('node_group_lists', []):
+            node_group_list = NodeGroupsListSpec(
+                name=item['name'],
+                table_name=item['table_name'],
+                index_column=ColumnSpec.from_dict(item['index_column']),
+                grouping_columns=[ColumnSpec.from_dict(c) for c in item['grouping_columns']]
+            )
+
+            if 'metadata_columns' in item:
+                for column_data in item['metadata_columns']:
+                    node_group_list.add_metadata_column(
+                        ColumnSpec.from_dict(column_data)
+                    )
+
+            if 'labels' in item:
+                for label in item['labels']:
+                    node_group_list.add_label(label)
+
+            if 'edge_metadata_columns' in item:
+                for column_data in item['metadata_columns']:
+                    node_group_list.add_metadata_column(
+                        ColumnSpec.from_dict(column_data)
+                    )
+
+            if 'edge_labels' in item:
+                for label in item['edge_labels']:
+                    node_group_list.add_edge_label(label)
+
+            graph.add_node_group_list(node_group_list)
+
         return graph
 
     def to_dict(self):
@@ -469,6 +579,11 @@ class GraphSpec(object):
     def edge_lists(self):
         """ Returns a list of edge lists. """
         return list(self.name_to_edge_list.values())
+
+    @property
+    def node_group_lists(self):
+        """ Returns a list of node lists. """
+        return list(self.name_to_node_group_list.values())
 
     @staticmethod
     def _node_list_extract_cols(tables, node_list, table_names):
@@ -567,6 +682,7 @@ class GraphSpec(object):
             return all_cols
 
     @property
+    # FIXME: Can deprecate this I think...
     def table_details(self):
         """Extract meaningful database table details from graph spec"""
         tables = dict()
@@ -591,6 +707,14 @@ class GraphSpec(object):
             safe_table = edge_list['safe_table_name']
             cols = self._edge_list_extract_cols(
                 tables, edge_list, (table, safe_table))
+            tables['tables'][(table, safe_table)] = cols
+
+        # Very jury rigged...
+        for node_list in self.to_dict().get('node_group_lists', []):
+            table = node_list['table_name']
+            safe_table = node_list['safe_table_name']
+            cols = self._node_list_extract_cols(
+                tables, node_list, (table, safe_table))
             tables['tables'][(table, safe_table)] = cols
 
         return tables
@@ -639,7 +763,8 @@ def get_friendly_name_mapping(node_edge_list):
                 )
 
     for col_type in [
-        'metadata_columns', 'source_metadata_columns', 'target_metadata_columns'
+        'metadata_columns', 'source_metadata_columns', 'target_metadata_columns',
+        'grouping_columns', 'edge_metadata_columns'
     ]:
         if col_type in node_edge_list:
             for col in node_edge_list[col_type]:
