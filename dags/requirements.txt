@@ -1,6 +1,6 @@
 appdirs==1.4.3
 future==0.15.2
-numpy==1.12.1
+numpy==1.22.0
 packaging==16.8
 pandas==0.19.2
 paramiko==2.2.1
